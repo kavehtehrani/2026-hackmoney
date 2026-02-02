@@ -5,20 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { ParsedInvoice } from "@/lib/types";
-import { getChainByName } from "@/lib/chains";
+import type { QuoteDisplay } from "@/app/upload/page";
 
 interface PaymentConfirmationProps {
   invoice: ParsedInvoice;
-  quote: {
-    fromChain: string;
-    toChain: string;
-    fromToken: string;
-    toToken: string;
-    fromAmount: string;
-    toAmount: string;
-    estimatedGas: string;
-    toolName: string;
-  } | null;
+  quote: QuoteDisplay;
   onConfirm: () => void;
   onCancel: () => void;
   isExecuting: boolean;
@@ -31,14 +22,13 @@ export default function PaymentConfirmation({
   onCancel,
   isExecuting,
 }: PaymentConfirmationProps) {
-  const toChain = getChainByName(invoice.chain);
-
   return (
     <Card>
       <CardHeader>
         <CardTitle>Confirm Payment</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5">
+        {/* Recipient details */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Recipient</span>
@@ -46,7 +36,7 @@ export default function PaymentConfirmation({
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">To Address</span>
-            <span className="font-mono text-xs">
+            <span className="font-mono text-xs max-w-[200px] truncate">
               {invoice.resolvedAddress || invoice.recipientAddress}
             </span>
           </div>
@@ -62,54 +52,64 @@ export default function PaymentConfirmation({
               {invoice.amount} {invoice.token}
             </span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Destination Chain</span>
-            <span>{toChain?.displayName || invoice.chain}</span>
-          </div>
         </div>
 
-        {quote && (
-          <>
-            <Separator />
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Route Details</p>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Route</span>
-                <span>
-                  {quote.fromChain} → {quote.toChain}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Bridge/DEX</span>
-                <span>{quote.toolName}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">You Send</span>
-                <span>
-                  {quote.fromAmount} {quote.fromToken}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">They Receive</span>
-                <span>
-                  {quote.toAmount} {quote.toToken}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Estimated Gas</span>
-                <span>{quote.estimatedGas}</span>
-              </div>
+        <Separator />
+
+        {/* Route details from LI.FI */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium">Route via LI.FI</p>
+            <Badge variant="outline" className="text-xs">
+              {quote.bridgeName}
+            </Badge>
+          </div>
+
+          <div className="rounded-lg bg-muted/50 p-4 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Path</span>
+              <span>
+                {quote.fromChain}
+                {quote.fromChainId !== quote.toChainId ? ` → ${quote.toChain}` : ""}
+              </span>
             </div>
-          </>
-        )}
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">You send</span>
+              <span className="font-medium">
+                {quote.fromAmount} {quote.fromToken}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">They receive</span>
+              <span className="font-medium">
+                {quote.toAmount} {quote.toToken}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Minimum received</span>
+              <span>
+                {quote.toAmountMin} {quote.toToken}
+              </span>
+            </div>
+            <Separator />
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Estimated gas</span>
+              <span>{quote.gasCostUSD}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Estimated time</span>
+              <span>{quote.estimatedTime}</span>
+            </div>
+          </div>
+        </div>
 
         <Separator />
 
         <div className="flex gap-3">
           <Button variant="outline" onClick={onCancel} disabled={isExecuting} className="flex-1">
-            Cancel
+            Back
           </Button>
-          <Button onClick={onConfirm} disabled={isExecuting || !quote} className="flex-1">
+          <Button onClick={onConfirm} disabled={isExecuting} className="flex-1">
             {isExecuting ? (
               <span className="flex items-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />

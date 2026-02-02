@@ -3,7 +3,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -60,39 +60,60 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 space-y-6">
+    <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <Button onClick={() => router.push("/upload")}>Pay Invoice</Button>
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Your invoices, payments, and wallet overview.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => router.push("/generate")}>
+            Generate Invoice
+          </Button>
+          <Button onClick={() => router.push("/upload")}>Pay Invoice</Button>
+        </div>
       </div>
 
       <WalletBalance walletAddress={user?.wallet?.address} />
 
       <Tabs defaultValue="invoices">
-        <TabsList>
-          <TabsTrigger value="invoices">Invoices ({invoices.length})</TabsTrigger>
-          <TabsTrigger value="payments">Payments ({payments.length})</TabsTrigger>
+        <TabsList className="bg-muted/50">
+          <TabsTrigger value="invoices">
+            Invoices ({invoices.length})
+          </TabsTrigger>
+          <TabsTrigger value="payments">
+            Payments ({payments.length})
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="invoices" className="space-y-3">
+        <TabsContent value="invoices" className="mt-4 space-y-3">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <div className="flex items-center gap-3 py-12 justify-center">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <span className="text-sm text-muted-foreground">Loading...</span>
+            </div>
           ) : invoices.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <p className="text-muted-foreground">No invoices yet.</p>
-                <Button
-                  variant="link"
-                  onClick={() => router.push("/upload")}
-                  className="mt-2"
-                >
-                  Upload your first invoice
-                </Button>
-              </CardContent>
-            </Card>
+            <div className="rounded-xl border border-dashed border-border py-16 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-4">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+              </div>
+              <p className="text-muted-foreground">No invoices yet.</p>
+              <Button
+                variant="link"
+                onClick={() => router.push("/upload")}
+                className="mt-1"
+              >
+                Upload your first invoice
+              </Button>
+            </div>
           ) : (
             invoices.map((inv) => (
-              <Card key={inv.id}>
+              <Card key={inv.id} className="transition-colors hover:bg-muted/30">
                 <CardContent className="flex items-center justify-between py-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
@@ -108,28 +129,35 @@ export default function DashboardPage() {
                         ? `${inv.parsedData.amount} ${inv.parsedData.token} on ${inv.parsedData.chain}`
                         : inv.rawFileName || "No data"}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(inv.createdAt).toLocaleDateString()}
-                    </p>
                   </div>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(inv.createdAt).toLocaleDateString()}
+                  </span>
                 </CardContent>
               </Card>
             ))
           )}
         </TabsContent>
 
-        <TabsContent value="payments" className="space-y-3">
+        <TabsContent value="payments" className="mt-4 space-y-3">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <div className="flex items-center gap-3 py-12 justify-center">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <span className="text-sm text-muted-foreground">Loading...</span>
+            </div>
           ) : payments.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <p className="text-muted-foreground">No payments yet.</p>
-              </CardContent>
-            </Card>
+            <div className="rounded-xl border border-dashed border-border py-16 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-4">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
+                  <line x1="12" y1="1" x2="12" y2="23" />
+                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                </svg>
+              </div>
+              <p className="text-muted-foreground">No payments yet.</p>
+            </div>
           ) : (
             payments.map((pay) => (
-              <Card key={pay.id}>
+              <Card key={pay.id} className="transition-colors hover:bg-muted/30">
                 <CardContent className="flex items-center justify-between py-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
@@ -149,6 +177,9 @@ export default function DashboardPage() {
                       </p>
                     )}
                   </div>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(pay.createdAt).toLocaleDateString()}
+                  </span>
                 </CardContent>
               </Card>
             ))

@@ -3,8 +3,11 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import ThemeToggle from "@/components/ThemeToggle";
 
-export default function Header() {
+function AuthSection() {
   const { ready, authenticated, user, login, logout } = usePrivy();
 
   const walletAddress = user?.wallet?.address;
@@ -12,53 +15,72 @@ export default function Header() {
     ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
     : null;
 
+  if (!ready) return null;
+
+  if (authenticated) {
+    return (
+      <div className="flex items-center gap-3">
+        {shortAddress && (
+          <span className="rounded-full bg-muted px-3 py-1 text-xs font-mono text-muted-foreground">
+            {shortAddress}
+          </span>
+        )}
+        <Button variant="ghost" size="sm" onClick={logout}>
+          Logout
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <header className="border-b border-border bg-card">
-      <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="text-xl font-bold text-primary">
-            PayFlow
+    <Button size="sm" onClick={login}>
+      Login
+    </Button>
+  );
+}
+
+const navLinks = [
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/upload", label: "Pay Invoice" },
+  { href: "/generate", label: "Generate" },
+];
+
+export default function Header() {
+  const pathname = usePathname();
+  const [privyAvailable, setPrivyAvailable] = useState(false);
+
+  useEffect(() => {
+    setPrivyAvailable(!!process.env.NEXT_PUBLIC_PRIVY_APP_ID);
+  }, []);
+
+  return (
+    <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-lg">
+      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
+        <div className="flex items-center gap-8">
+          <Link href="/" className="text-lg font-bold tracking-tight">
+            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              PayFlow
+            </span>
           </Link>
-          {authenticated && (
-            <nav className="flex items-center gap-4">
+          <nav className="flex items-center gap-1">
+            {navLinks.map((link) => (
               <Link
-                href="/dashboard"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                key={link.href}
+                href={link.href}
+                className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+                  pathname === link.href
+                    ? "bg-muted text-foreground font-medium"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
               >
-                Dashboard
+                {link.label}
               </Link>
-              <Link
-                href="/upload"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Pay Invoice
-              </Link>
-              <Link
-                href="/generate"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Generate
-              </Link>
-            </nav>
-          )}
+            ))}
+          </nav>
         </div>
         <div className="flex items-center gap-3">
-          {ready && authenticated ? (
-            <>
-              {shortAddress && (
-                <span className="text-sm font-mono text-muted-foreground">
-                  {shortAddress}
-                </span>
-              )}
-              <Button variant="outline" size="sm" onClick={logout}>
-                Logout
-              </Button>
-            </>
-          ) : ready ? (
-            <Button size="sm" onClick={login}>
-              Login
-            </Button>
-          ) : null}
+          <ThemeToggle />
+          {privyAvailable && <AuthSection />}
         </div>
       </div>
     </header>

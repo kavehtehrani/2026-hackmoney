@@ -10,6 +10,7 @@ interface PaymentStatusProps {
   status: PaymentStatusType;
   txHash: string | null;
   chainName: string;
+  executionLog: string[];
   onReset: () => void;
 }
 
@@ -27,6 +28,7 @@ export default function PaymentStatus({
   status,
   txHash,
   chainName,
+  executionLog,
   onReset,
 }: PaymentStatusProps) {
   const config = statusConfig[status];
@@ -60,6 +62,19 @@ export default function PaymentStatus({
           <p className="text-sm text-destructive">
             Payment failed. Please try again.
           </p>
+        )}
+
+        {executionLog.length > 0 && (
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Execution Log</p>
+            <div className="max-h-48 overflow-y-auto rounded-lg bg-muted/50 p-3 space-y-1">
+              {executionLog.map((msg, i) => (
+                <p key={i} className="text-xs font-mono text-muted-foreground">
+                  {msg}
+                </p>
+              ))}
+            </div>
+          </div>
         )}
 
         {txHash && (

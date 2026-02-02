@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -54,29 +53,35 @@ export default function InvoiceUploader({
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        <Button
-          variant={mode === "file" ? "default" : "outline"}
-          size="sm"
+      <div className="inline-flex rounded-lg bg-muted p-1">
+        <button
+          className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+            mode === "file"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
           onClick={() => setMode("file")}
         >
           Upload File
-        </Button>
-        <Button
-          variant={mode === "text" ? "default" : "outline"}
-          size="sm"
+        </button>
+        <button
+          className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+            mode === "text"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
           onClick={() => setMode("text")}
         >
           Paste Text
-        </Button>
+        </button>
       </div>
 
       {mode === "file" ? (
-        <Card
-          className={`relative flex min-h-[200px] cursor-pointer items-center justify-center border-2 border-dashed p-8 transition-colors ${
+        <div
+          className={`group relative flex min-h-[220px] cursor-pointer items-center justify-center rounded-xl border-2 border-dashed p-8 transition-all ${
             dragActive
-              ? "border-primary bg-primary/5"
-              : "border-muted-foreground/25 hover:border-muted-foreground/50"
+              ? "border-primary bg-primary/5 scale-[1.01]"
+              : "border-border hover:border-primary/50 hover:bg-muted/30"
           }`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
@@ -91,26 +96,35 @@ export default function InvoiceUploader({
             onChange={handleFileChange}
             className="hidden"
           />
-          <div className="text-center">
+          <div className="text-center space-y-3">
             {isLoading ? (
-              <div className="space-y-2">
-                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <>
+                <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                 <p className="text-sm text-muted-foreground">
-                  Parsing invoice...
+                  Parsing invoice with AI...
                 </p>
-              </div>
+              </>
             ) : (
               <>
-                <p className="text-lg font-medium">
-                  Drop your invoice here
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  PDF, PNG, JPG, or WEBP
-                </p>
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-base font-medium">
+                    Drop your invoice here
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    PDF, PNG, JPG, or WEBP
+                  </p>
+                </div>
               </>
             )}
           </div>
-        </Card>
+        </div>
       ) : (
         <div className="space-y-3">
           <Textarea
@@ -118,6 +132,7 @@ export default function InvoiceUploader({
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
             rows={8}
+            className="resize-none"
           />
           <Button
             onClick={() => onTextSubmit(textInput)}

@@ -2,12 +2,14 @@
 
 import { useState, useRef } from "react";
 import { toPng } from "html-to-image";
+import { pdf } from "@react-pdf/renderer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { SUPPORTED_CHAINS, SUPPORTED_TOKENS } from "@/lib/chains";
+import InvoicePDF from "./InvoicePDF";
 
 interface InvoiceFormData {
   recipientName: string;
@@ -68,12 +70,29 @@ export default function InvoiceGenerator({ onGenerated }: InvoiceGeneratorProps)
     }
   };
 
-  const handleDownload = () => {
+  const handleDownloadPng = () => {
     if (!previewUrl) return;
     const link = document.createElement("a");
     link.download = `${form.invoiceNumber}.png`;
     link.href = previewUrl;
     link.click();
+  };
+
+  const handleDownloadPdf = async () => {
+    const blob = await pdf(
+      <InvoicePDF
+        data={{
+          ...form,
+          chainDisplay,
+        }}
+      />
+    ).toBlob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.download = `${form.invoiceNumber}.pdf`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleSave = async () => {
@@ -348,8 +367,11 @@ export default function InvoiceGenerator({ onGenerated }: InvoiceGeneratorProps)
               <img src={previewUrl} alt="Generated invoice" className="w-full" />
             </div>
             <div className="flex gap-3">
-              <Button onClick={handleDownload} variant="outline" className="flex-1">
+              <Button onClick={handleDownloadPng} variant="outline" className="flex-1">
                 Download PNG
+              </Button>
+              <Button onClick={handleDownloadPdf} variant="outline" className="flex-1">
+                Download PDF
               </Button>
               <Button onClick={handleSave} className="flex-1">
                 Save to Dashboard
