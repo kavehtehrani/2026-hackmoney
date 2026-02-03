@@ -365,6 +365,13 @@ export default function SendPage() {
     return Object.values(SUPPORTED_CHAINS).find((c) => c.id === chainId)?.displayName || String(chainId);
   };
 
+  // Get explorer URL for transaction
+  const getExplorerTxUrl = (chainId: number, hash: string) => {
+    const chain = Object.values(SUPPORTED_CHAINS).find((c) => c.id === chainId);
+    if (!chain) return null;
+    return `${chain.explorerUrl}/tx/${hash}`;
+  };
+
   if (!ready || !authenticated) return null;
 
   return (
@@ -591,17 +598,27 @@ export default function SendPage() {
               </div>
             )}
             {txStatus === "success" && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2 text-green-600">
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   <span className="font-medium">Transaction successful!</span>
                 </div>
-                {txHash && (
-                  <p className="text-xs font-mono text-muted-foreground">
-                    tx: {txHash.slice(0, 16)}...{txHash.slice(-12)}
-                  </p>
+                {txHash && selectedBalance && (
+                  <a
+                    href={getExplorerTxUrl(selectedBalance.chainId, txHash) || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                  >
+                    <span className="font-mono">
+                      {txHash.slice(0, 10)}...{txHash.slice(-8)}
+                    </span>
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
                 )}
               </div>
             )}
