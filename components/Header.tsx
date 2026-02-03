@@ -1,6 +1,6 @@
 "use client";
 
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -8,9 +8,14 @@ import { useEffect, useState } from "react";
 import ThemeToggle from "@/components/ThemeToggle";
 
 function AuthSection() {
-  const { ready, authenticated, user, login, logout } = usePrivy();
+  const { ready, authenticated, login, logout } = usePrivy();
+  const { wallets } = useWallets();
 
-  const walletAddress = user?.wallet?.address;
+  // Prefer external wallet (MetaMask etc.) over embedded
+  const activeWallet = wallets.find(
+    (w) => w.walletClientType !== "privy"
+  ) || wallets[0];
+  const walletAddress = activeWallet?.address;
   const shortAddress = walletAddress
     ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
     : null;

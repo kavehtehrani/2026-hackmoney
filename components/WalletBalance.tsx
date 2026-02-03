@@ -1,21 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useWallets } from "@privy-io/react-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SUPPORTED_CHAINS } from "@/lib/chains";
-import { getWalletBalances, getChainDisplayName, type WalletTokenBalance } from "@/lib/lifi";
+import { getWalletBalances, getChainDisplayName, formatTokenAmount, type WalletTokenBalance } from "@/lib/lifi";
 
-interface WalletBalanceProps {
-  walletAddress: string | undefined;
-}
-
-export default function WalletBalance({ walletAddress }: WalletBalanceProps) {
+export default function WalletBalance() {
+  const { wallets, ready } = useWallets();
   const [balances, setBalances] = useState<WalletTokenBalance[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Use the first connected wallet's address (external wallets like MetaMask take priority)
+  const activeWallet = wallets.find(
+    (w) => w.walletClientType !== "privy"
+  ) || wallets[0];
+  const walletAddress = activeWallet?.address;
+
   useEffect(() => {
-    if (!walletAddress) return;
+    if (!ready || !walletAddress) return;
 
     let cancelled = false;
 
@@ -36,14 +40,24 @@ export default function WalletBalance({ walletAddress }: WalletBalanceProps) {
     return () => {
       cancelled = true;
     };
-  }, [walletAddress]);
+  }, [ready, walletAddress]);
 
-  if (!walletAddress) return null;
+  if (!ready || !walletAddress) return null;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Your Balances</CardTitle>
+        <CardTitle className="text-base flex items-center justify-between">
+          <span>Your Balances</span>
+          <span className="text-xs font-mono text-muted-foreground font-normal">
+            {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+            {activeWallet?.walletClientType && activeWallet.walletClientType !== "privy" && (
+              <span className="ml-2 text-muted-foreground/70">
+                ({activeWallet.walletClientType})
+              </span>
+            )}
+          </span>
+        </CardTitle>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -67,7 +81,7 @@ export default function WalletBalance({ walletAddress }: WalletBalanceProps) {
                   </span>
                 </div>
                 <span className="font-mono">
-                  {parseFloat(b.amount).toFixed(4)}
+                  {formatTokenAmount(b.amount, b.decimals)}
                 </span>
               </div>
             ))}

@@ -78,6 +78,12 @@ export default function UploadPage() {
   const { wallets } = useWallets();
   const router = useRouter();
 
+  // Prefer external wallet (MetaMask etc.) over Privy embedded wallet
+  const activeWallet = wallets.find(
+    (w) => w.walletClientType !== "privy"
+  ) || wallets[0];
+  const activeAddress = activeWallet?.address;
+
   const [step, setStep] = useState<Step>("upload");
   const [parsedData, setParsedData] = useState<ParsedInvoice | null>(null);
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
@@ -150,7 +156,7 @@ export default function UploadPage() {
 
   // After user reviews parsed data, fetch a LI.FI quote
   const handleConfirmPreview = useCallback(async () => {
-    if (!parsedData || !user?.wallet?.address) return;
+    if (!parsedData || !activeAddress) return;
     setIsLoading(true);
 
     try {
@@ -191,7 +197,7 @@ export default function UploadPage() {
       // For now: same chain + same token (USDC on destination chain)
       // LI.FI will handle bridging if needed
       const quoteParams: QuoteParams = {
-        fromAddress: user.wallet.address,
+        fromAddress: activeAddress,
         fromChainId: toChain.id,
         toChainId: toChain.id,
         fromTokenAddress: toChain.usdcAddress,
@@ -224,14 +230,15 @@ export default function UploadPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [parsedData, user?.wallet?.address, invoiceId]);
+  }, [parsedData, activeAddress, invoiceId]);
 
   // Execute payment via LI.FI SDK
   const handleExecutePayment = useCallback(async () => {
     if (!lifiQuote || !parsedData) return;
 
+    // Prefer external wallet (MetaMask etc.) over embedded
     const wallet = wallets.find(
-      (w) => w.walletClientType === "privy" || w.connectorType === "embedded"
+      (w) => w.walletClientType !== "privy"
     ) || wallets[0];
 
     if (!wallet) {
@@ -361,7 +368,7 @@ export default function UploadPage() {
             onTextSubmit={handleTextSubmit}
             isLoading={isLoading}
           />
-          <WalletBalance walletAddress={user?.wallet?.address} />
+          <WalletBalance />
         </>
       )}
 

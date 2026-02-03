@@ -76,7 +76,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <WalletBalance walletAddress={user?.wallet?.address} />
+      <WalletBalance />
 
       <Tabs defaultValue="invoices">
         <TabsList className="bg-muted/50">

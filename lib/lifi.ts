@@ -10,12 +10,12 @@ import {
   type RouteExtended,
 } from "@lifi/sdk";
 import type { Route, LiFiStep, RoutesRequest, StatusResponse } from "@lifi/types";
-import { createWalletClient, custom, type WalletClient } from "viem";
+import { createWalletClient, custom, type WalletClient, type Chain } from "viem";
 import { mainnet, arbitrum, optimism, polygon, base } from "viem/chains";
 import { SUPPORTED_CHAINS } from "./chains";
 
 // Map chain IDs to viem chain objects
-const viemChains: Record<number, typeof mainnet> = {
+const viemChains: Record<number, Chain> = {
   1: mainnet,
   42161: arbitrum,
   10: optimism,
@@ -42,7 +42,8 @@ function ensureInitialized() {
  * This is what LI.FI needs for transaction signing.
  */
 export function createViemWalletClient(
-  eip1193Provider: { request: (...args: unknown[]) => Promise<unknown> },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  eip1193Provider: { request: (...args: any[]) => Promise<any> },
   chainId: number,
   account: `0x${string}`
 ): WalletClient {
