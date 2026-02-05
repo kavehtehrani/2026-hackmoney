@@ -277,10 +277,10 @@ export function PaymentChatBot() {
   };
 
   return (
-    <Card className="w-full max-w-2xl mx-auto overflow-hidden">
+    <Card className="w-full overflow-hidden">
       <CardContent className="p-0">
         {/* Messages area */}
-        <div className="h-[400px] overflow-y-auto p-4 space-y-4">
+        <div className="h-[530px] overflow-y-auto p-4 space-y-4">
           {messages.map((message) => (
             <div key={message.id}>
               <div
