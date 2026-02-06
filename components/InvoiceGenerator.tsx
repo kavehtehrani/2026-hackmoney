@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import { toPng } from "html-to-image";
 import { pdf } from "@react-pdf/renderer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,7 @@ interface InvoiceGeneratorProps {
 }
 
 export default function InvoiceGenerator({ onGenerated }: InvoiceGeneratorProps) {
+  const { user } = usePrivy();
   const [form, setForm] = useState<InvoiceFormData>(defaultForm);
   const [generating, setGenerating] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -97,8 +99,11 @@ export default function InvoiceGenerator({ onGenerated }: InvoiceGeneratorProps)
   };
 
   const handleSave = async () => {
+    if (!user?.id) {
+      alert("Please log in to save invoices.");
+      return;
+    }
     try {
-      const userId = "anonymous"; // Will be replaced with actual Privy user ID at runtime
       await fetch("/api/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
