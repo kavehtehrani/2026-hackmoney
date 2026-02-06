@@ -17,6 +17,8 @@ export default function DashboardPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmDeleteInvoice, setConfirmDeleteInvoice] = useState<string | null>(null);
+  const [confirmDeletePayment, setConfirmDeletePayment] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!user?.id) return;
@@ -34,6 +36,47 @@ export default function DashboardPage() {
       setLoading(false);
     }
   }, [user?.id]);
+
+  const handleDeleteInvoice = useCallback(async (id: string) => {
+    if (confirmDeleteInvoice !== id) {
+      setConfirmDeleteInvoice(id);
+      setConfirmDeletePayment(null);
+      // Auto-reset after 3 seconds
+      setTimeout(() => setConfirmDeleteInvoice((curr) => (curr === id ? null : curr)), 3000);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/invoices?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (res.ok) {
+        setInvoices((prev) => prev.filter((inv) => inv.id !== id));
+        setPayments((prev) => prev.filter((pay) => pay.invoiceId !== id));
+      }
+    } catch {
+      // Silently handle delete errors
+    } finally {
+      setConfirmDeleteInvoice(null);
+    }
+  }, [confirmDeleteInvoice]);
+
+  const handleDeletePayment = useCallback(async (id: string) => {
+    if (confirmDeletePayment !== id) {
+      setConfirmDeletePayment(id);
+      setConfirmDeleteInvoice(null);
+      // Auto-reset after 3 seconds
+      setTimeout(() => setConfirmDeletePayment((curr) => (curr === id ? null : curr)), 3000);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/payments?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (res.ok) {
+        setPayments((prev) => prev.filter((pay) => pay.id !== id));
+      }
+    } catch {
+      // Silently handle delete errors
+    } finally {
+      setConfirmDeletePayment(null);
+    }
+  }, [confirmDeletePayment]);
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -155,14 +198,38 @@ export default function DashboardPage() {
                       </span>
                     </div>
                   </div>
-                  {inv.status !== "paid" && inv.parsedData && (
-                    <Button
-                      onClick={() => router.push(`/upload?invoiceId=${inv.id}`)}
-                      className="px-6"
-                    >
-                      Pay
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {inv.status !== "paid" && inv.parsedData && (
+                      <Button
+                        onClick={() => router.push(`/upload?invoiceId=${inv.id}`)}
+                        className="px-6"
+                      >
+                        Pay
+                      </Button>
+                    )}
+                    {confirmDeleteInvoice === inv.id ? (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteInvoice(inv.id)}
+                        className="h-8 text-xs"
+                      >
+                        Confirm?
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteInvoice(inv.id)}
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))
@@ -224,6 +291,17 @@ export default function DashboardPage() {
                       </p>
                     )}
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeletePayment(pay.id)}
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </Button>
                 </CardContent>
               </Card>
             ))

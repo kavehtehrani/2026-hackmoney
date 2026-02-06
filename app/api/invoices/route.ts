@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getInvoicesByUser, updateInvoice, createInvoice } from "@/lib/db";
+import { getInvoicesByUser, updateInvoice, createInvoice, deleteInvoice } from "@/lib/db";
 import { v4 as uuid } from "uuid";
 
 export async function GET(request: NextRequest) {
@@ -49,5 +49,20 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     console.error("Update invoice error:", error);
     return NextResponse.json({ error: "Failed to update invoice" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const id = request.nextUrl.searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "id required" }, { status: 400 });
+    }
+
+    deleteInvoice(id);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Delete invoice error:", error);
+    return NextResponse.json({ error: "Failed to delete invoice" }, { status: 500 });
   }
 }

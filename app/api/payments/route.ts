@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPayment, getPaymentsByUser, updatePayment } from "@/lib/db";
+import { createPayment, getPaymentsByUser, updatePayment, deletePayment } from "@/lib/db";
 import { v4 as uuid } from "uuid";
 
 export async function GET(request: NextRequest) {
@@ -57,5 +57,20 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     console.error("Update payment error:", error);
     return NextResponse.json({ error: "Failed to update payment" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const id = request.nextUrl.searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "id required" }, { status: 400 });
+    }
+
+    deletePayment(id);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Delete payment error:", error);
+    return NextResponse.json({ error: "Failed to delete payment" }, { status: 500 });
   }
 }

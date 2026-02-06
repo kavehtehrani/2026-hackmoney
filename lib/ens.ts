@@ -4,7 +4,7 @@ import { mainnet } from "viem/chains";
 
 const publicClient = createPublicClient({
   chain: mainnet,
-  transport: http("https://eth.llamarpc.com"),
+  transport: http("https://eth.drpc.org"),
 });
 
 export async function resolveEnsName(name: string): Promise<string | null> {

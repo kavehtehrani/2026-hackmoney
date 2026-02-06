@@ -15,30 +15,97 @@ import {
   buildApprovalTx,
   type WalletTokenBalance,
 } from "@/lib/lifi";
-import { resolveEnsForChain, getEnsProfile, type ENSProfile } from "@/lib/ens";
+import { resolveEnsName, getEnsProfile, type ENSProfile } from "@/lib/ens";
 import { ENSAvatar, ENSProfileCard } from "@/components/ENSProfileCard";
 import type { ParsedPaymentIntent } from "@/lib/types";
 
+// Common tokens for receiving
 const RECEIVE_TOKENS = [
   { symbol: "ETH", address: "0x0000000000000000000000000000000000000000", decimals: 18 },
   { symbol: "USDC", address: "USDC", decimals: 6 },
   { symbol: "USDT", address: "USDT", decimals: 6 },
+  { symbol: "DAI", address: "DAI", decimals: 18 },
+  { symbol: "WBTC", address: "WBTC", decimals: 8 },
+  { symbol: "ARB", address: "ARB", decimals: 18 },
+  { symbol: "OP", address: "OP", decimals: 18 },
+  { symbol: "POL", address: "POL", decimals: 18 },
+  { symbol: "LINK", address: "LINK", decimals: 18 },
+  { symbol: "UNI", address: "UNI", decimals: 18 },
+  { symbol: "AAVE", address: "AAVE", decimals: 18 },
 ];
 
-const USDC_BY_CHAIN: Record<number, string> = {
-  1: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-  42161: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-  10: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
-  137: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
-  8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-};
-
-const USDT_BY_CHAIN: Record<number, string> = {
-  1: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
-  42161: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
-  10: "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
-  137: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
-  8453: "0x0000000000000000000000000000000000000000",
+// Token addresses per chain (0x0 means not available)
+const TOKEN_BY_CHAIN: Record<string, Record<number, string>> = {
+  USDC: {
+    1: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    42161: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    10: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+    137: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+    8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  },
+  USDT: {
+    1: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    42161: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+    10: "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
+    137: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+    8453: "0x0000000000000000000000000000000000000000",
+  },
+  DAI: {
+    1: "0x6B175474E89094C44Da98b954EesdfCD86dFB820",
+    42161: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
+    10: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
+    137: "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
+    8453: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb",
+  },
+  WBTC: {
+    1: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+    42161: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
+    10: "0x68f180fcCe6836688e9084f035309E29Bf0A2095",
+    137: "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
+    8453: "0x0000000000000000000000000000000000000000",
+  },
+  ARB: {
+    1: "0xB50721BCf8d664c30412Cfbc6cf7a15145234ad1",
+    42161: "0x912CE59144191C1204E64559FE8253a0e49E6548",
+    10: "0x0000000000000000000000000000000000000000",
+    137: "0x0000000000000000000000000000000000000000",
+    8453: "0x0000000000000000000000000000000000000000",
+  },
+  OP: {
+    1: "0x0000000000000000000000000000000000000000",
+    42161: "0x0000000000000000000000000000000000000000",
+    10: "0x4200000000000000000000000000000000000042",
+    137: "0x0000000000000000000000000000000000000000",
+    8453: "0x0000000000000000000000000000000000000000",
+  },
+  POL: {
+    1: "0x455e53CBB86018Ac2B8092FdCd39d8444aFFC3F6",
+    42161: "0x0000000000000000000000000000000000000000",
+    10: "0x0000000000000000000000000000000000000000",
+    137: "0x0000000000000000000000000000000000000000",
+    8453: "0x0000000000000000000000000000000000000000",
+  },
+  LINK: {
+    1: "0x514910771AF9Ca656af840dff83E8264EcF986CA",
+    42161: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4",
+    10: "0x350a791Bfc2C21F9Ed5d10980Dad2e2638ffa7f6",
+    137: "0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39",
+    8453: "0x0000000000000000000000000000000000000000",
+  },
+  UNI: {
+    1: "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
+    42161: "0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0",
+    10: "0x6fd9d7AD17242c41f7131d257212c54A0e816691",
+    137: "0xb33EaAd8d922B1083446DC23f610c2567fB5180f",
+    8453: "0x0000000000000000000000000000000000000000",
+  },
+  AAVE: {
+    1: "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9",
+    42161: "0xba5DdD1f9d7F570dc94a51479a000E3BCE967196",
+    10: "0x76FB31fb4af56892A25e32cFC43De717950c9278",
+    137: "0xD6DF932A45C0f255f85145f286eA0b292B21C90B",
+    8453: "0x0000000000000000000000000000000000000000",
+  },
 };
 
 interface Quote {
@@ -71,9 +138,21 @@ interface Quote {
 
 type TxStatus = "idle" | "approving" | "sending" | "confirming" | "success" | "error";
 
+export interface PaymentResult {
+  txHash: string;
+  fromChain: string;
+  fromChainId: number;
+  toChain: string;
+  toChainId: number;
+  fromToken: string;
+  toToken: string;
+  fromAmount: string;
+  toAmount: string;
+}
+
 interface EmbeddedSendFormProps {
   intent: ParsedPaymentIntent;
-  onSuccess?: () => void;
+  onSuccess?: (result: PaymentResult) => void;
   onCancel?: () => void;
 }
 
@@ -159,7 +238,7 @@ export function EmbeddedSendForm({ intent, onSuccess, onCancel }: EmbeddedSendFo
     }
   }, [intent.destinationChain]);
 
-  // Resolve ENS names with chain-specific resolution and profile fetching
+  // Resolve ENS names
   useEffect(() => {
     const resolveAddress = async () => {
       // Clear profile when address changes
@@ -173,14 +252,14 @@ export function EmbeddedSendForm({ intent, onSuccess, onCancel }: EmbeddedSendFo
       if (toAddress.includes(".")) {
         setResolvingEns(true);
         try {
-          // Use chain-specific ENS resolution (ENSIP-9/11)
-          const resolved = await resolveEnsForChain(toAddress, toChainId);
+          const resolved = await resolveEnsName(toAddress);
           setResolvedAddress(resolved);
 
-          // Fetch full ENS profile if resolved
+          // Fetch full ENS profile if resolved (don't block on this)
           if (resolved) {
-            const profile = await getEnsProfile(toAddress);
-            setEnsProfile(profile);
+            getEnsProfile(toAddress)
+              .then((profile) => setEnsProfile(profile))
+              .catch(() => {});
           }
         } catch {
           setResolvedAddress(null);
@@ -193,9 +272,9 @@ export function EmbeddedSendForm({ intent, onSuccess, onCancel }: EmbeddedSendFo
     };
     const timer = setTimeout(resolveAddress, 300);
     return () => clearTimeout(timer);
-  }, [toAddress, toChainId]);
+  }, [toAddress]);
 
-  // Get quote
+  // Get quote - uses "receive exact" mode (toAmount) like /send page
   const getQuote = useCallback(async () => {
     if (!selectedBalance || !resolvedAddress || !amount || !walletAddress) {
       setQuote(null);
@@ -211,18 +290,26 @@ export function EmbeddedSendForm({ intent, onSuccess, onCancel }: EmbeddedSendFo
       return;
     }
 
-    const fromAmountWei = BigInt(Math.floor(amountNum * 10 ** selectedBalance.decimals)).toString();
+    // Resolve destination token address and decimals
+    const tokenConfig = RECEIVE_TOKENS.find((t) => t.symbol === toTokenSymbol);
+    const toTokenDecimals = tokenConfig?.decimals ?? 18;
 
     let toTokenAddress = "0x0000000000000000000000000000000000000000";
-    if (toTokenSymbol === "USDC") {
-      toTokenAddress = USDC_BY_CHAIN[toChainId] || USDC_BY_CHAIN[8453];
-    } else if (toTokenSymbol === "USDT") {
-      toTokenAddress = USDT_BY_CHAIN[toChainId];
+    if (toTokenSymbol !== "ETH") {
+      const chainAddresses = TOKEN_BY_CHAIN[toTokenSymbol];
+      if (chainAddresses) {
+        toTokenAddress = chainAddresses[toChainId] || "0x0000000000000000000000000000000000000000";
+      }
       if (toTokenAddress === "0x0000000000000000000000000000000000000000") {
-        setQuoteError("USDT not available on this chain");
+        setQuoteError(`${toTokenSymbol} not available on this chain`);
         return;
       }
     }
+
+    // Convert amount to smallest unit of DESTINATION token (receive exact mode)
+    const toAmountWei = BigInt(
+      Math.floor(amountNum * 10 ** toTokenDecimals)
+    ).toString();
 
     setLoadingQuote(true);
     setQuoteError(null);
@@ -236,7 +323,7 @@ export function EmbeddedSendForm({ intent, onSuccess, onCancel }: EmbeddedSendFo
           toChain: toChainId,
           fromToken: selectedBalance.address,
           toToken: toTokenAddress,
-          fromAmount: fromAmountWei,
+          toAmount: toAmountWei, // Use toAmount for "receive exact" mode
           fromAddress: walletAddress,
           toAddress: resolvedAddress,
         }),
@@ -338,7 +425,21 @@ export function EmbeddedSendForm({ intent, onSuccess, onCancel }: EmbeddedSendFo
       setTxStatus("confirming");
       await waitForTx(provider, txHashResult);
       setTxStatus("success");
-      onSuccess?.();
+
+      // Pass payment details to onSuccess
+      if (onSuccess && quote) {
+        onSuccess({
+          txHash: txHashResult,
+          fromChain: getChainName(quote.action.fromChainId),
+          fromChainId: quote.action.fromChainId,
+          toChain: getChainName(quote.action.toChainId),
+          toChainId: quote.action.toChainId,
+          fromToken: quote.action.fromToken.symbol,
+          toToken: quote.action.toToken.symbol,
+          fromAmount: quote.action.fromAmount,
+          toAmount: quote.estimate.toAmount,
+        });
+      }
     } catch (err) {
       console.error("Transaction error:", err);
       setTxError(err instanceof Error ? err.message : "Transaction failed");
@@ -398,7 +499,9 @@ export function EmbeddedSendForm({ intent, onSuccess, onCancel }: EmbeddedSendFo
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
           >
-            View on explorer
+            <span className="font-mono">
+              {txHash.slice(0, 10)}...{txHash.slice(-8)}
+            </span>
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
@@ -508,9 +611,9 @@ export function EmbeddedSendForm({ intent, onSuccess, onCancel }: EmbeddedSendFo
             <p className="text-xs text-destructive text-left">Could not resolve ENS name</p>
           )}
 
-          {/* Amount + Chain + Token row - equal width columns */}
+          {/* Amount (recipient receives) + Chain + Token row */}
           <div className="grid grid-cols-3 gap-2">
-            <div className="flex items-center gap-1">
+            <div>
               <Input
                 type="number"
                 placeholder="0.00"
@@ -518,18 +621,6 @@ export function EmbeddedSendForm({ intent, onSuccess, onCancel }: EmbeddedSendFo
                 onChange={(e) => setAmount(e.target.value)}
                 className="font-mono h-8 w-full"
               />
-              {selectedBalance && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-1.5 text-xs shrink-0"
-                  onClick={() =>
-                    setAmount((parseFloat(selectedBalance.amount) / 10 ** selectedBalance.decimals).toString())
-                  }
-                >
-                  Max
-                </Button>
-              )}
             </div>
             <div className="w-full">
               <ChainSelect
@@ -570,10 +661,10 @@ export function EmbeddedSendForm({ intent, onSuccess, onCancel }: EmbeddedSendFo
           {quote && !loadingQuote && (
             <>
               <span className="flex items-center gap-1">
-                <span className="text-muted-foreground">Receives</span>
-                <TokenIcon symbol={quote.action.toToken.symbol} size={14} />
+                <span className="text-muted-foreground">You send</span>
+                <TokenIcon symbol={quote.action.fromToken.symbol} size={14} />
                 <span className="font-mono font-medium">
-                  {(parseFloat(quote.estimate.toAmountMin) / 10 ** quote.action.toToken.decimals).toFixed(2)} {quote.action.toToken.symbol}
+                  {(parseFloat(quote.action.fromAmount) / 10 ** quote.action.fromToken.decimals).toFixed(4)} {quote.action.fromToken.symbol}
                 </span>
               </span>
               <span className="text-muted-foreground">

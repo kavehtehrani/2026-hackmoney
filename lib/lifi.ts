@@ -86,21 +86,32 @@ export interface QuoteParams {
   fromTokenAddress: string;
   toTokenAddress: string;
   toAddress: string;
-  fromAmount: string;
+  fromAmount?: string;  // Use this for "send exact" mode
+  toAmount?: string;    // Use this for "receive exact" mode (like /send page)
 }
 
 export async function fetchQuote(params: QuoteParams): Promise<LiFiStep> {
   ensureInitialized();
-  const quote = await getQuote({
+
+  const baseParams = {
     fromAddress: params.fromAddress,
     fromChain: params.fromChainId,
     toChain: params.toChainId,
     fromToken: params.fromTokenAddress,
     toToken: params.toTokenAddress,
     toAddress: params.toAddress,
-    fromAmount: params.fromAmount,
-  });
-  return quote;
+  };
+
+  // Use toAmount if provided (receive exact mode), otherwise fromAmount
+  if (params.toAmount) {
+    const quote = await getQuote({ ...baseParams, toAmount: params.toAmount });
+    return quote;
+  } else if (params.fromAmount) {
+    const quote = await getQuote({ ...baseParams, fromAmount: params.fromAmount });
+    return quote;
+  } else {
+    throw new Error("Either fromAmount or toAmount is required");
+  }
 }
 
 // ---- Routes (multiple options) ----
@@ -110,23 +121,44 @@ export interface RouteParams {
   toChainId: number;
   fromTokenAddress: string;
   toTokenAddress: string;
-  fromAmount: string;
+  fromAmount?: string;  // Use this for "send exact" mode
+  toAmount?: string;    // Use this for "receive exact" mode (like /send page)
   fromAddress?: string;
   toAddress?: string;
 }
 
 export async function fetchRoutes(params: RouteParams) {
   ensureInitialized();
-  const request: RoutesRequest = {
+
+  let fromAmount = params.fromAmount;
+
+  // If toAmount is provided, first get a quote to calculate the required fromAmount
+  if (params.toAmount && !fromAmount) {
+    const quote = await fetchQuote({
+      fromAddress: params.fromAddress || "",
+      fromChainId: params.fromChainId,
+      toChainId: params.toChainId,
+      fromTokenAddress: params.fromTokenAddress,
+      toTokenAddress: params.toTokenAddress,
+      toAddress: params.toAddress || "",
+      toAmount: params.toAmount,
+    });
+    fromAmount = quote.action.fromAmount;
+  }
+
+  if (!fromAmount) {
+    throw new Error("Either fromAmount or toAmount is required");
+  }
+
+  const result = await getRoutes({
     fromChainId: params.fromChainId,
     toChainId: params.toChainId,
     fromTokenAddress: params.fromTokenAddress,
     toTokenAddress: params.toTokenAddress,
-    fromAmount: params.fromAmount,
     fromAddress: params.fromAddress,
     toAddress: params.toAddress,
-  };
-  const result = await getRoutes(request);
+    fromAmount,
+  });
   return result;
 }
 
@@ -157,21 +189,40 @@ export interface MultipleRoutesResult {
 /**
  * Fetch multiple route options with tags for comparison.
  * Returns up to 5 routes with RECOMMENDED, FASTEST, and CHEAPEST tags.
+ * Supports both fromAmount (send exact) and toAmount (receive exact) modes.
  */
 export async function fetchMultipleRoutes(params: RouteParams): Promise<MultipleRoutesResult> {
   ensureInitialized();
 
-  const request: RoutesRequest = {
+  let fromAmount = params.fromAmount;
+
+  // If toAmount is provided, first get a quote to calculate the required fromAmount
+  if (params.toAmount && !fromAmount) {
+    const quote = await fetchQuote({
+      fromAddress: params.fromAddress || "",
+      fromChainId: params.fromChainId,
+      toChainId: params.toChainId,
+      fromTokenAddress: params.fromTokenAddress,
+      toTokenAddress: params.toTokenAddress,
+      toAddress: params.toAddress || "",
+      toAmount: params.toAmount,
+    });
+    fromAmount = quote.action.fromAmount;
+  }
+
+  if (!fromAmount) {
+    throw new Error("Either fromAmount or toAmount is required");
+  }
+
+  const result = await getRoutes({
     fromChainId: params.fromChainId,
     toChainId: params.toChainId,
     fromTokenAddress: params.fromTokenAddress,
     toTokenAddress: params.toTokenAddress,
-    fromAmount: params.fromAmount,
     fromAddress: params.fromAddress,
     toAddress: params.toAddress,
-  };
-
-  const result = await getRoutes(request);
+    fromAmount,
+  });
   const routes = result.routes.slice(0, 5); // Limit to 5 routes
 
   if (routes.length === 0) {

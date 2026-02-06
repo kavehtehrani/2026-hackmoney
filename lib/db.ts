@@ -132,6 +132,13 @@ export function getInvoicesByUser(userId: string) {
   }));
 }
 
+export function deleteInvoice(id: string) {
+  const db = getDb();
+  // Delete associated payments first (due to foreign key constraint)
+  db.prepare("DELETE FROM payments WHERE invoice_id = ?").run(id);
+  db.prepare("DELETE FROM invoices WHERE id = ?").run(id);
+}
+
 export function getInvoiceById(id: string) {
   const db = getDb();
   const row = db.prepare("SELECT * FROM invoices WHERE id = ?").get(id) as {
@@ -206,6 +213,11 @@ export function updatePayment(id: string, data: { txHash?: string; status?: stri
 
   values.push(id);
   db.prepare(`UPDATE payments SET ${sets.join(", ")} WHERE id = ?`).run(...values);
+}
+
+export function deletePayment(id: string) {
+  const db = getDb();
+  db.prepare("DELETE FROM payments WHERE id = ?").run(id);
 }
 
 export function getPaymentsByInvoice(invoiceId: string) {

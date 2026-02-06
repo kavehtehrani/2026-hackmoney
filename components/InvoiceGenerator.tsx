@@ -46,6 +46,7 @@ export default function InvoiceGenerator({ onGenerated }: InvoiceGeneratorProps)
   const [form, setForm] = useState<InvoiceFormData>(defaultForm);
   const [generating, setGenerating] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const invoiceRef = useRef<HTMLDivElement>(null);
 
   const update = (field: keyof InvoiceFormData, value: string) => {
@@ -100,9 +101,10 @@ export default function InvoiceGenerator({ onGenerated }: InvoiceGeneratorProps)
 
   const handleSave = async () => {
     if (!user?.id) {
-      alert("Please log in to save invoices.");
+      setSaveStatus("error");
       return;
     }
+    setSaveStatus("saving");
     try {
       await fetch("/api/invoices", {
         method: "POST",
@@ -123,9 +125,9 @@ export default function InvoiceGenerator({ onGenerated }: InvoiceGeneratorProps)
           status: "draft",
         }),
       });
-      alert("Invoice saved to your dashboard.");
+      setSaveStatus("saved");
     } catch {
-      alert("Failed to save invoice.");
+      setSaveStatus("error");
     }
   };
 
@@ -376,8 +378,24 @@ export default function InvoiceGenerator({ onGenerated }: InvoiceGeneratorProps)
               <Button onClick={handleDownloadPdf} variant="outline" className="flex-1">
                 Download PDF
               </Button>
-              <Button onClick={handleSave} className="flex-1">
-                Save to Dashboard
+              <Button
+                onClick={handleSave}
+                disabled={saveStatus === "saving" || saveStatus === "saved"}
+                className={`flex-1 ${
+                  saveStatus === "saved"
+                    ? "bg-green-600 hover:bg-green-600"
+                    : saveStatus === "error"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : ""
+                }`}
+              >
+                {saveStatus === "saving"
+                  ? "Saving..."
+                  : saveStatus === "saved"
+                  ? "Saved"
+                  : saveStatus === "error"
+                  ? "Failed - Try Again"
+                  : "Save to Dashboard"}
               </Button>
             </div>
           </CardContent>

@@ -101,6 +101,21 @@ export default function ContactPage() {
     setEditName(contact.name || "");
   };
 
+  const contactsWithProfiles = contacts.filter((c) => {
+    const p = c.ensProfile as ENSProfile | null;
+    return p && (p.description || p.twitter || p.github || p.website);
+  });
+
+  const collapseAll = () => {
+    setCollapsedIds(new Set(contactsWithProfiles.map((c) => c.id)));
+  };
+
+  const expandAll = () => {
+    setCollapsedIds(new Set());
+  };
+
+  const allCollapsed = contactsWithProfiles.length > 0 && contactsWithProfiles.every((c) => collapsedIds.has(c.id));
+
   if (!ready || !authenticated) return null;
 
   const formatDate = (date: string | null) => {
@@ -121,9 +136,20 @@ export default function ContactPage() {
             Your address book for quick payments.
           </p>
         </div>
-        <Button onClick={() => setShowAddForm(!showAddForm)}>
-          {showAddForm ? "Cancel" : "Add Contact"}
-        </Button>
+        <div className="flex items-center gap-2">
+          {contactsWithProfiles.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={allCollapsed ? expandAll : collapseAll}
+            >
+              {allCollapsed ? "Expand All" : "Collapse All"}
+            </Button>
+          )}
+          <Button onClick={() => setShowAddForm(!showAddForm)}>
+            {showAddForm ? "Cancel" : "Add Contact"}
+          </Button>
+        </div>
       </div>
 
       {showAddForm && (
@@ -189,8 +215,8 @@ export default function ContactPage() {
 
             return (
               <Card key={contact.id} className="transition-colors hover:bg-muted/30">
-                <CardContent className="py-3">
-                  <div className="flex items-center gap-3">
+                <CardContent className="py-2">
+                  <div className="flex items-center gap-2">
                     {/* Avatar - clickable to toggle if has profile */}
                     <button
                       onClick={() => hasProfile && toggleExpanded()}
@@ -330,10 +356,10 @@ export default function ContactPage() {
 
                   {/* Expanded ENS Profile */}
                   {isExpanded && ensProfile && (
-                    <div className="mt-3 pt-3 border-t border-border">
+                    <div className="mt-2 pt-2 border-t border-border">
                       {/* Description */}
                       {ensProfile.description && (
-                        <p className="text-sm text-muted-foreground mb-3">
+                        <p className="text-sm text-muted-foreground mb-2">
                           {ensProfile.description}
                         </p>
                       )}
