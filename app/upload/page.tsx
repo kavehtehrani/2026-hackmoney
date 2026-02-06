@@ -1,7 +1,7 @@
 "use client";
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import InvoiceUploader from "@/components/InvoiceUploader";
 import InvoicePreview from "@/components/InvoicePreview";
@@ -77,6 +77,7 @@ export default function UploadPage() {
   const { ready, authenticated, user } = usePrivy();
   const { wallets } = useWallets();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Prefer external wallet (MetaMask etc.) over Privy embedded wallet
   const activeWallet = wallets.find(
@@ -85,6 +86,7 @@ export default function UploadPage() {
   const activeAddress = activeWallet?.address;
 
   const [step, setStep] = useState<Step>("upload");
+  const [loadingInvoice, setLoadingInvoice] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedInvoice | null>(null);
   const [invoiceId, setInvoiceId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -104,6 +106,32 @@ export default function UploadPage() {
     }
   }, [ready, authenticated, router]);
 
+  // Load existing invoice if invoiceId is provided
+  useEffect(() => {
+    const invoiceIdParam = searchParams.get("invoiceId");
+    if (invoiceIdParam && ready && authenticated) {
+      setLoadingInvoice(true);
+      fetch(`/api/invoices/${invoiceIdParam}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Invoice not found");
+          return res.json();
+        })
+        .then((invoice) => {
+          if (invoice.parsedData) {
+            setParsedData(invoice.parsedData);
+            setInvoiceId(invoice.id);
+            setStep("preview");
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to load invoice:", err);
+        })
+        .finally(() => {
+          setLoadingInvoice(false);
+        });
+    }
+  }, [searchParams, ready, authenticated]);
+
   // File upload handler (calls parse-invoice API)
   const handleFileUpload = useCallback(async (file: File) => {
     setIsLoading(true);
@@ -113,6 +141,7 @@ export default function UploadPage() {
 
       const res = await fetch("/api/parse-invoice", {
         method: "POST",
+        headers: user?.id ? { "x-user-id": user.id } : {},
         body: formData,
       });
 
@@ -136,7 +165,10 @@ export default function UploadPage() {
     try {
       const res = await fetch("/api/parse-invoice", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(user?.id && { "x-user-id": user.id }),
+        },
         body: JSON.stringify({ text }),
       });
 
@@ -361,7 +393,12 @@ export default function UploadPage() {
         </p>
       </div>
 
-      {step === "upload" && (
+      {loadingInvoice ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <span className="ml-3 text-muted-foreground">Loading invoice...</span>
+        </div>
+      ) : step === "upload" && (
         <>
           <InvoiceUploader
             onFileUpload={handleFileUpload}

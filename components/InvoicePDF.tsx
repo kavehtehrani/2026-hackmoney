@@ -158,11 +158,7 @@ export interface InvoicePDFData {
 
 export default function InvoicePDF({ data }: { data: InvoicePDFData }) {
   const formattedDueDate = data.dueDate
-    ? new Date(data.dueDate).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
+    ? new Date(data.dueDate).toISOString().split("T")[0]
     : null;
 
   return (

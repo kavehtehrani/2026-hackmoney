@@ -53,6 +53,32 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
   },
 };
 
+// Chain logo URLs (using crypto.com CDN)
+export const CHAIN_LOGOS: Record<string, string> = {
+  ethereum: "https://assets.coingecko.com/coins/images/279/small/ethereum.png",
+  arbitrum: "https://assets.coingecko.com/coins/images/16547/small/photo_2023-03-29_21.47.00.jpeg",
+  optimism: "https://assets.coingecko.com/coins/images/25244/small/Optimism.png",
+  polygon: "https://assets.coingecko.com/coins/images/4713/small/polygon.png",
+  base: "https://assets.coingecko.com/coins/images/31164/small/base.png",
+};
+
+// Token logo URLs
+export const TOKEN_LOGOS: Record<string, string> = {
+  USDC: "https://assets.coingecko.com/coins/images/6319/small/usdc.png",
+  USDT: "https://assets.coingecko.com/coins/images/325/small/Tether.png",
+  DAI: "https://assets.coingecko.com/coins/images/9956/small/Badge_Dai.png",
+  ETH: "https://assets.coingecko.com/coins/images/279/small/ethereum.png",
+  MATIC: "https://assets.coingecko.com/coins/images/4713/small/polygon.png",
+};
+
+export function getChainLogo(chainName: string): string | undefined {
+  return CHAIN_LOGOS[chainName.toLowerCase()];
+}
+
+export function getTokenLogo(symbol: string): string | undefined {
+  return TOKEN_LOGOS[symbol.toUpperCase()];
+}
+
 export const SUPPORTED_TOKENS: Record<string, { symbol: string; name: string; decimals: number }> = {
   USDC: { symbol: "USDC", name: "USD Coin", decimals: 6 },
   USDT: { symbol: "USDT", name: "Tether USD", decimals: 6 },

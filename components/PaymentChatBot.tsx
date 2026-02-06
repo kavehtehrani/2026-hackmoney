@@ -400,9 +400,6 @@ export function PaymentChatBot() {
               )}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-2 text-center">
-            Type a payment request or upload an invoice (PDF, PNG, JPG)
-          </p>
         </div>
       </CardContent>
     </Card>

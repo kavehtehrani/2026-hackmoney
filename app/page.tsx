@@ -68,38 +68,6 @@ export default function Home() {
         <div className="pt-2 w-full">
           <PaymentChatBot />
         </div>
-
-        <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-          {ready && authenticated ? (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => router.push("/upload")}
-              >
-                Upload Invoice
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => router.push("/send")}
-              >
-                Manual Send
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => router.push("/dashboard")}
-              >
-                Dashboard
-              </Button>
-            </>
-          ) : ready ? (
-            <p className="text-sm text-muted-foreground">
-              Connect your wallet to send payments
-            </p>
-          ) : null}
-        </div>
       </div>
     </div>
   );

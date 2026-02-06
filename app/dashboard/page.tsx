@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import WalletBalance from "@/components/WalletBalance";
+import { getChainLogo, getTokenLogo } from "@/lib/chains";
 import type { Invoice, Payment } from "@/lib/types";
 
 export default function DashboardPage() {
@@ -44,6 +45,11 @@ export default function DashboardPage() {
 
   if (!ready || !authenticated) return null;
 
+  const formatDate = (date: Date | string) => {
+    const d = new Date(date);
+    return d.toISOString().split("T")[0];
+  };
+
   const statusVariant = (s: string) => {
     switch (s) {
       case "paid":
@@ -60,7 +66,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
+    <div className="mx-auto max-w-5xl px-4 py-6 space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
@@ -88,14 +94,14 @@ export default function DashboardPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="invoices" className="mt-4 space-y-3">
+        <TabsContent value="invoices" className="mt-3 space-y-2">
           {loading ? (
-            <div className="flex items-center gap-3 py-12 justify-center">
+            <div className="flex items-center gap-3 py-8 justify-center">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               <span className="text-sm text-muted-foreground">Loading...</span>
             </div>
           ) : invoices.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border py-16 text-center">
+            <div className="rounded-xl border border-dashed border-border py-10 text-center">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-4">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -114,39 +120,63 @@ export default function DashboardPage() {
           ) : (
             invoices.map((inv) => (
               <Card key={inv.id} className="transition-colors hover:bg-muted/30">
-                <CardContent className="flex items-center justify-between py-4">
-                  <div className="space-y-1">
+                <CardContent className="flex items-center gap-3 py-3">
+                  <span className="text-xs text-muted-foreground font-mono w-20 shrink-0">
+                    {formatDate(inv.createdAt)}
+                  </span>
+                  {inv.parsedData?.chain && (
+                    <img
+                      src={getChainLogo(inv.parsedData.chain)}
+                      alt={inv.parsedData.chain}
+                      className="h-8 w-8 rounded-full shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">
+                      <span className="font-medium truncate">
                         {inv.parsedData?.recipientName || "Unnamed Invoice"}
                       </span>
                       <Badge variant={statusVariant(inv.status)}>
                         {inv.status}
                       </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {inv.parsedData
-                        ? `${inv.parsedData.amount} ${inv.parsedData.token} on ${inv.parsedData.chain}`
-                        : inv.rawFileName || "No data"}
-                    </p>
+                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      {inv.parsedData?.token && (
+                        <img
+                          src={getTokenLogo(inv.parsedData.token)}
+                          alt={inv.parsedData.token}
+                          className="h-4 w-4 rounded-full"
+                        />
+                      )}
+                      <span className="truncate">
+                        {inv.parsedData
+                          ? `${inv.parsedData.amount} ${inv.parsedData.token} to ${inv.parsedData.recipientAddress}`
+                          : inv.rawFileName || "No data"}
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(inv.createdAt).toLocaleDateString()}
-                  </span>
+                  {inv.status !== "paid" && inv.parsedData && (
+                    <Button
+                      onClick={() => router.push(`/upload?invoiceId=${inv.id}`)}
+                      className="px-6"
+                    >
+                      Pay
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             ))
           )}
         </TabsContent>
 
-        <TabsContent value="payments" className="mt-4 space-y-3">
+        <TabsContent value="payments" className="mt-3 space-y-2">
           {loading ? (
-            <div className="flex items-center gap-3 py-12 justify-center">
+            <div className="flex items-center gap-3 py-8 justify-center">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               <span className="text-sm text-muted-foreground">Loading...</span>
             </div>
           ) : payments.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border py-16 text-center">
+            <div className="rounded-xl border border-dashed border-border py-10 text-center">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-4">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground">
                   <line x1="12" y1="1" x2="12" y2="23" />
@@ -158,9 +188,26 @@ export default function DashboardPage() {
           ) : (
             payments.map((pay) => (
               <Card key={pay.id} className="transition-colors hover:bg-muted/30">
-                <CardContent className="flex items-center justify-between py-4">
-                  <div className="space-y-1">
+                <CardContent className="flex items-center gap-3 py-3">
+                  <span className="text-xs text-muted-foreground font-mono w-20 shrink-0">
+                    {formatDate(pay.createdAt)}
+                  </span>
+                  {pay.toChain && (
+                    <img
+                      src={getChainLogo(pay.toChain)}
+                      alt={pay.toChain}
+                      className="h-8 w-8 rounded-full shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0 space-y-0.5">
                     <div className="flex items-center gap-2">
+                      {pay.toToken && (
+                        <img
+                          src={getTokenLogo(pay.toToken)}
+                          alt={pay.toToken}
+                          className="h-4 w-4 rounded-full"
+                        />
+                      )}
                       <span className="font-medium">
                         {pay.amount} {pay.toToken}
                       </span>
@@ -177,9 +224,6 @@ export default function DashboardPage() {
                       </p>
                     )}
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(pay.createdAt).toLocaleDateString()}
-                  </span>
                 </CardContent>
               </Card>
             ))

@@ -108,7 +108,7 @@ export default function InvoiceGenerator({ onGenerated }: InvoiceGeneratorProps)
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId,
+          userId: user.id,
           rawFileName: `${form.invoiceNumber}.png`,
           rawFileType: "image/png",
           parsedData: {
@@ -278,7 +278,7 @@ export default function InvoiceGenerator({ onGenerated }: InvoiceGeneratorProps)
               )}
               {form.dueDate && (
                 <div style={{ fontSize: "13px", color: "#666", marginTop: "4px" }}>
-                  Due: {new Date(form.dueDate).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                  Due: {new Date(form.dueDate).toISOString().split("T")[0]}
                 </div>
               )}
             </div>
