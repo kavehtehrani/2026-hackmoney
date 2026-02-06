@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TokenIcon, ChainIcon } from "@/components/TokenIcon";
+import { TokenIcon } from "@/components/TokenIcon";
+import { BalanceGrid } from "@/components/BalanceGrid";
 import { TokenSelect, ChainSelect } from "@/components/ui/token-select";
 import { SUPPORTED_CHAINS } from "@/lib/chains";
 import {
@@ -100,7 +101,6 @@ function SendPageContent() {
 
   // Form state
   const [selectedBalance, setSelectedBalance] = useState<WalletTokenBalance | null>(null);
-  const [showTokenPicker, setShowTokenPicker] = useState(false);
   const [toAddress, setToAddress] = useState("");
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
   const [resolvingEns, setResolvingEns] = useState(false);
@@ -455,11 +455,6 @@ function SendPageContent() {
     });
   }
 
-  // Get chain name
-  const getChainName = (chainId: number) => {
-    return Object.values(SUPPORTED_CHAINS).find((c) => c.id === chainId)?.displayName || String(chainId);
-  };
-
   // Get explorer URL for transaction
   const getExplorerTxUrl = (chainId: number, hash: string) => {
     const chain = Object.values(SUPPORTED_CHAINS).find((c) => c.id === chainId);
@@ -476,120 +471,13 @@ function SendPageContent() {
         <legend className="px-2 text-sm font-medium text-muted-foreground">
           Send from
         </legend>
-        <div>
-          {loadingBalances ? (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              <Skeleton className="h-16" />
-              <Skeleton className="h-16 hidden sm:block" />
-              <Skeleton className="h-16 hidden lg:block" />
-            </div>
-          ) : balances.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">
-              No tokens found. Fund your wallet to send.
-            </p>
-          ) : (
-            <>
-              {/* Mobile: Dropdown style */}
-              <div className="sm:hidden">
-                <button
-                  onClick={() => setShowTokenPicker(!showTokenPicker)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg border border-border bg-background"
-                >
-                  {selectedBalance ? (
-                    <div className="flex items-center gap-3">
-                      <TokenIcon symbol={selectedBalance.symbol} address={selectedBalance.address} size={28} />
-                      <div className="text-left">
-                        <div className="font-medium text-sm">{selectedBalance.symbol}</div>
-                        <div className="text-xs text-muted-foreground flex items-center gap-1">
-                          <ChainIcon chainId={selectedBalance.chainId} size={10} />
-                          {getChainName(selectedBalance.chainId)}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground text-sm">Select token</span>
-                  )}
-                  <div className="flex items-center gap-2">
-                    {selectedBalance && (
-                      <span className="font-mono text-sm">
-                        {formatTokenAmount(selectedBalance.amount, selectedBalance.decimals)}
-                      </span>
-                    )}
-                    <svg
-                      className={`h-4 w-4 text-muted-foreground transition-transform ${showTokenPicker ? "rotate-180" : ""}`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </button>
-                {showTokenPicker && (
-                  <div className="mt-2 space-y-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-background p-1">
-                    {balances.map((b, i) => (
-                      <button
-                        key={i}
-                        onClick={() => {
-                          setSelectedBalance(b);
-                          setShowTokenPicker(false);
-                        }}
-                        className={`w-full flex items-center justify-between p-2 rounded-md text-left transition-colors ${
-                          selectedBalance?.address === b.address && selectedBalance?.chainId === b.chainId
-                            ? "bg-primary/10"
-                            : "hover:bg-muted"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <TokenIcon symbol={b.symbol} address={b.address} size={24} />
-                          <div>
-                            <div className="font-medium text-sm">{b.symbol}</div>
-                            <div className="text-xs text-muted-foreground flex items-center gap-1">
-                              <ChainIcon chainId={b.chainId} size={10} />
-                              {getChainName(b.chainId)}
-                            </div>
-                          </div>
-                        </div>
-                        <span className="font-mono text-xs">
-                          {formatTokenAmount(b.amount, b.decimals)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Desktop: Compact grid */}
-              <div className="hidden sm:grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {balances.map((b, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setSelectedBalance(b)}
-                    className={`flex items-center gap-2 p-2.5 rounded-lg border transition-colors text-left ${
-                      selectedBalance?.address === b.address && selectedBalance?.chainId === b.chainId
-                        ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                        : "border-border hover:border-primary/50 hover:bg-muted/50"
-                    }`}
-                  >
-                    <TokenIcon symbol={b.symbol} address={b.address} size={28} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-medium text-sm">{b.symbol}</span>
-                        <span className="font-mono text-xs truncate">
-                          {formatTokenAmount(b.amount, b.decimals)}
-                        </span>
-                      </div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-1">
-                        <ChainIcon chainId={b.chainId} size={10} />
-                        {getChainName(b.chainId)}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+        <BalanceGrid
+          balances={balances}
+          loading={loadingBalances}
+          selectedBalance={selectedBalance}
+          onSelect={setSelectedBalance}
+          emptyMessage="No tokens found. Fund your wallet to send."
+        />
       </fieldset>
 
       {/* Recipient */}
