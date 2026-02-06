@@ -368,7 +368,7 @@ export function PaymentChatBot() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="min-h-[50px] max-h-[120px] pl-12 pr-16 resize-none"
+              className="min-h-[50px] max-h-[120px] pl-12 pr-16 py-3 resize-none"
               disabled={loading}
             />
             {/* Upload button */}

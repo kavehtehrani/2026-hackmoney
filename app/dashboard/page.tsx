@@ -95,9 +95,6 @@ export default function DashboardPage() {
 
   const statusVariant = (s: string) => {
     switch (s) {
-      case "paid":
-      case "completed":
-        return "default" as const;
       case "failed":
         return "destructive" as const;
       case "paying":
@@ -107,6 +104,8 @@ export default function DashboardPage() {
         return "outline" as const;
     }
   };
+
+  const isSuccessStatus = (s: string) => s === "paid" || s === "completed";
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 space-y-5">
@@ -179,7 +178,10 @@ export default function DashboardPage() {
                       <span className="font-medium truncate max-w-[150px] sm:max-w-none">
                         {inv.parsedData?.recipientName || "Unnamed Invoice"}
                       </span>
-                      <Badge variant={statusVariant(inv.status)}>
+                      <Badge
+                        variant={statusVariant(inv.status)}
+                        className={isSuccessStatus(inv.status) ? "bg-green-500/15 text-green-600 border-green-500/20" : ""}
+                      >
                         {inv.status}
                       </Badge>
                     </div>
@@ -253,7 +255,9 @@ export default function DashboardPage() {
               <p className="text-muted-foreground">No payments yet.</p>
             </div>
           ) : (
-            payments.map((pay) => (
+            payments.map((pay) => {
+              const invoice = invoices.find((inv) => inv.id === pay.invoiceId);
+              return (
               <Card key={pay.id} className="transition-colors hover:bg-muted/30">
                 <CardContent className="flex items-center gap-3 py-3">
                   <span className="text-xs text-muted-foreground font-mono w-20 shrink-0">
@@ -278,10 +282,21 @@ export default function DashboardPage() {
                       <span className="font-medium">
                         {pay.amount} {pay.toToken}
                       </span>
-                      <Badge variant={statusVariant(pay.status)}>
+                      <Badge
+                        variant={statusVariant(pay.status)}
+                        className={isSuccessStatus(pay.status) ? "bg-green-500/15 text-green-600 border-green-500/20" : ""}
+                      >
                         {pay.status}
                       </Badge>
                     </div>
+                    {invoice?.parsedData && (
+                      <p className="text-sm">
+                        <span className="text-foreground">{invoice.parsedData.recipientName}</span>
+                        {invoice.parsedData.memo && (
+                          <span className="text-muted-foreground"> - {invoice.parsedData.memo}</span>
+                        )}
+                      </p>
+                    )}
                     <p className="text-sm text-muted-foreground">
                       {pay.fromChain} → {pay.toChain}
                     </p>
@@ -291,20 +306,32 @@ export default function DashboardPage() {
                       </p>
                     )}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeletePayment(pay.id)}
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
-                  </Button>
+                  {confirmDeletePayment === pay.id ? (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeletePayment(pay.id)}
+                      className="h-8 text-xs shrink-0"
+                    >
+                      Confirm?
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeletePayment(pay.id)}
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
-            ))
+              );
+            })
           )}
         </TabsContent>
       </Tabs>
