@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -12,14 +13,20 @@ import type { ParsedInvoice, PaymentStatus as PaymentStatusType } from "@/lib/ty
 import { isEnsName, resolveEnsName } from "@/lib/ens";
 import {
   fetchQuote,
+  fetchMultipleRoutes,
   executePayment,
+  executeRoutePayment,
   buildExecutionOptions,
   createViemWalletClient,
   formatTokenAmount,
+  parseRouteProgress,
   type QuoteParams,
+  type RouteParams,
+  type RouteOption,
+  type TransactionProgress as TransactionProgressType,
 } from "@/lib/lifi";
 import { getChainByName, SUPPORTED_CHAINS } from "@/lib/chains";
-import type { LiFiStep } from "@lifi/types";
+import type { LiFiStep, Route } from "@lifi/types";
 import type { RouteExtended } from "@lifi/sdk";
 
 type Step = "upload" | "preview" | "confirm" | "status";
@@ -73,7 +80,7 @@ function extractQuoteDisplay(quote: LiFiStep): QuoteDisplay {
   };
 }
 
-export default function UploadPage() {
+function UploadPageContent() {
   const { ready, authenticated, user } = usePrivy();
   const { wallets } = useWallets();
   const router = useRouter();
@@ -93,10 +100,14 @@ export default function UploadPage() {
   const [isResolving, setIsResolving] = useState(false);
   const [lifiQuote, setLifiQuote] = useState<LiFiStep | null>(null);
   const [quoteDisplay, setQuoteDisplay] = useState<QuoteDisplay | null>(null);
+  const [routeOptions, setRouteOptions] = useState<RouteOption[]>([]);
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatusType>("pending");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionLog, setExecutionLog] = useState<string[]>([]);
+  const [transactionProgress, setTransactionProgress] = useState<TransactionProgressType | null>(null);
   const executionLogRef = useRef(executionLog);
   executionLogRef.current = executionLog;
 
@@ -228,6 +239,32 @@ export default function UploadPage() {
 
       // For now: same chain + same token (USDC on destination chain)
       // LI.FI will handle bridging if needed
+      const routeParams: RouteParams = {
+        fromChainId: toChain.id,
+        toChainId: toChain.id,
+        fromTokenAddress: toChain.usdcAddress,
+        toTokenAddress: toChain.usdcAddress,
+        fromAmount,
+        fromAddress: activeAddress,
+        toAddress: recipientAddr,
+      };
+
+      // Fetch multiple routes for comparison
+      const { routes, routeOptions: options } = await fetchMultipleRoutes(routeParams);
+
+      if (routes.length === 0) {
+        throw new Error("No routes found for this payment");
+      }
+
+      // Store route options for selection
+      setRouteOptions(options);
+
+      // Pre-select the first (recommended) route
+      const firstOption = options[0];
+      setSelectedRouteId(firstOption.id);
+      setSelectedRoute(firstOption.route);
+
+      // Also fetch single quote for backward compatibility with QuoteDisplay
       const quoteParams: QuoteParams = {
         fromAddress: activeAddress,
         fromChainId: toChain.id,
@@ -264,9 +301,19 @@ export default function UploadPage() {
     }
   }, [parsedData, activeAddress, invoiceId]);
 
+  // Handle route selection
+  const handleSelectRoute = useCallback((routeId: string) => {
+    setSelectedRouteId(routeId);
+    const selected = routeOptions.find((opt) => opt.id === routeId);
+    if (selected) {
+      setSelectedRoute(selected.route);
+    }
+  }, [routeOptions]);
+
   // Execute payment via LI.FI SDK
   const handleExecutePayment = useCallback(async () => {
-    if (!lifiQuote || !parsedData) return;
+    // Use selected route if available, otherwise fall back to lifiQuote
+    if ((!selectedRoute && !lifiQuote) || !parsedData) return;
 
     // Prefer external wallet (MetaMask etc.) over embedded
     const wallet = wallets.find(
@@ -282,6 +329,7 @@ export default function UploadPage() {
     setPaymentStatus("executing");
     setStep("status");
     setExecutionLog(["Starting payment..."]);
+    setTransactionProgress(null);
 
     try {
       // Build a function that returns a viem WalletClient for any chain
@@ -304,7 +352,11 @@ export default function UploadPage() {
       const executionOptions = buildExecutionOptions(
         getWalletClientForChain,
         (updatedRoute: RouteExtended) => {
-          // Track execution progress
+          // Parse route into structured progress
+          const progress = parseRouteProgress(updatedRoute);
+          setTransactionProgress(progress);
+
+          // Track execution progress (legacy log)
           const lastStep = updatedRoute.steps[updatedRoute.steps.length - 1];
           if (lastStep?.execution) {
             const processes = lastStep.execution.process;
@@ -324,7 +376,10 @@ export default function UploadPage() {
       );
 
       // Execute the payment through LI.FI
-      const result = await executePayment(lifiQuote, executionOptions);
+      // Use selected route if available, otherwise use quote
+      const result = selectedRoute
+        ? await executeRoutePayment(selectedRoute, executionOptions)
+        : await executePayment(lifiQuote!, executionOptions);
 
       // Extract final tx hash from the result
       const finalStep = result.steps[result.steps.length - 1];
@@ -359,6 +414,22 @@ export default function UploadPage() {
           body: JSON.stringify({ id: invoiceId, status: "paid" }),
         });
       }
+
+      // Add/update contact from payment
+      if (user?.id && parsedData.recipientAddress) {
+        await fetch("/api/contacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user.id,
+            address: parsedData.resolvedAddress || parsedData.recipientAddress,
+            ensName: parsedData.resolvedAddress ? parsedData.recipientAddress : null,
+            name: parsedData.recipientName || null,
+            lastPaidAt: new Date().toISOString(),
+            incrementPayment: true,
+          }),
+        });
+      }
     } catch (err) {
       console.error("Payment error:", err);
       setPaymentStatus("failed");
@@ -369,7 +440,7 @@ export default function UploadPage() {
     } finally {
       setIsExecuting(false);
     }
-  }, [lifiQuote, parsedData, wallets, invoiceId, quoteDisplay, txHash]);
+  }, [lifiQuote, selectedRoute, parsedData, wallets, invoiceId, quoteDisplay, txHash]);
 
   const handleReset = useCallback(() => {
     setStep("upload");
@@ -377,9 +448,13 @@ export default function UploadPage() {
     setInvoiceId(null);
     setLifiQuote(null);
     setQuoteDisplay(null);
+    setRouteOptions([]);
+    setSelectedRouteId(null);
+    setSelectedRoute(null);
     setPaymentStatus("pending");
     setTxHash(null);
     setExecutionLog([]);
+    setTransactionProgress(null);
   }, []);
 
   if (!ready || !authenticated) return null;
@@ -423,6 +498,9 @@ export default function UploadPage() {
         <PaymentConfirmation
           invoice={parsedData}
           quote={quoteDisplay}
+          routeOptions={routeOptions}
+          selectedRouteId={selectedRouteId}
+          onSelectRoute={handleSelectRoute}
           onConfirm={handleExecutePayment}
           onCancel={() => setStep("preview")}
           isExecuting={isExecuting}
@@ -435,9 +513,26 @@ export default function UploadPage() {
           txHash={txHash}
           chainName={parsedData?.chain || ""}
           executionLog={executionLog}
+          transactionProgress={transactionProgress}
           onReset={handleReset}
         />
       )}
     </div>
+  );
+}
+
+// Wrapper to handle Suspense for useSearchParams
+export default function UploadPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-2xl px-4 py-8 flex items-center justify-center">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <span className="ml-3 text-muted-foreground">Loading...</span>
+        </div>
+      }
+    >
+      <UploadPageContent />
+    </Suspense>
   );
 }

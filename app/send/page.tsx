@@ -251,22 +251,25 @@ function SendPageContent() {
       return;
     }
 
-    // Convert amount to wei/smallest unit
-    const fromAmountWei = BigInt(
-      Math.floor(amountNum * 10 ** selectedBalance.decimals)
-    ).toString();
-
-    // Resolve toToken address
+    // Resolve toToken address and decimals
     let toTokenAddress = "0x0000000000000000000000000000000000000000";
+    let toTokenDecimals = 18; // ETH default
     if (toTokenSymbol === "USDC") {
       toTokenAddress = USDC_BY_CHAIN[toChainId] || USDC_BY_CHAIN[8453];
+      toTokenDecimals = 6;
     } else if (toTokenSymbol === "USDT") {
       toTokenAddress = USDT_BY_CHAIN[toChainId];
+      toTokenDecimals = 6;
       if (toTokenAddress === "0x0000000000000000000000000000000000000000") {
         setQuoteError("USDT not available on this chain");
         return;
       }
     }
+
+    // Convert amount to smallest unit of DESTINATION token (receive exact mode)
+    const toAmountWei = BigInt(
+      Math.floor(amountNum * 10 ** toTokenDecimals)
+    ).toString();
 
     setLoadingQuote(true);
     setQuoteError(null);
@@ -280,7 +283,7 @@ function SendPageContent() {
           toChain: toChainId,
           fromToken: selectedBalance.address,
           toToken: toTokenAddress,
-          fromAmount: fromAmountWei,
+          toAmount: toAmountWei, // Use toAmount for "receive exact" mode
           fromAddress: walletAddress,
           toAddress: resolvedAddress,
         }),
@@ -548,34 +551,19 @@ function SendPageContent() {
       {/* Amount Input */}
       <fieldset className="relative rounded-lg border border-border p-4 pt-3">
         <legend className="px-2 text-sm font-medium text-muted-foreground">
-          Amount ({toTokenSymbol})
+          Recipient receives ({toTokenSymbol})
         </legend>
         <div className="space-y-2">
-          <div className="flex gap-2">
-            <Input
-              type="number"
-              placeholder="0.00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="font-mono"
-            />
-            {selectedBalance && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setAmount(
-                    (parseFloat(selectedBalance.amount) / 10 ** selectedBalance.decimals).toString()
-                  )
-                }
-              >
-                Max
-              </Button>
-            )}
-          </div>
+          <Input
+            type="number"
+            placeholder="0.00"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="font-mono"
+          />
           {selectedBalance && (
             <p className="text-xs text-muted-foreground">
-              Available: {formatTokenAmount(selectedBalance.amount, selectedBalance.decimals)} {selectedBalance.symbol}
+              Paying from: {formatTokenAmount(selectedBalance.amount, selectedBalance.decimals)} {selectedBalance.symbol} available
             </p>
           )}
         </div>
@@ -600,8 +588,18 @@ function SendPageContent() {
             ) : quote ? (
               <div className="space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Receives</span>
+                  <span className="text-muted-foreground">You send</span>
                   <span className="font-mono font-medium flex items-center gap-1">
+                    <TokenIcon symbol={quote.action.fromToken.symbol} size={14} />
+                    {(parseFloat(quote.action.fromAmount) / 10 ** quote.action.fromToken.decimals).toFixed(
+                      quote.action.fromToken.decimals > 8 ? 6 : 4
+                    )}{" "}
+                    {quote.action.fromToken.symbol}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Recipient gets</span>
+                  <span className="font-mono font-medium flex items-center gap-1 text-green-600">
                     <TokenIcon symbol={quote.action.toToken.symbol} size={14} />
                     {(parseFloat(quote.estimate.toAmountMin) / 10 ** quote.action.toToken.decimals).toFixed(
                       quote.action.toToken.decimals > 8 ? 6 : 2
@@ -707,7 +705,9 @@ function SendPageContent() {
           ? "Sending..."
           : txStatus === "confirming"
           ? "Confirming..."
-          : `Send ${amount || "0"} ${selectedBalance?.symbol || "tokens"}`}
+          : quote
+          ? `Send ${(parseFloat(quote.action.fromAmount) / 10 ** quote.action.fromToken.decimals).toFixed(4)} ${quote.action.fromToken.symbol}`
+          : `Send ${amount || "0"} ${toTokenSymbol}`}
       </Button>
     </div>
   );

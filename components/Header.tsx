@@ -50,6 +50,7 @@ const navLinks = [
   { href: "/send", label: "Send" },
   { href: "/upload", label: "Pay Invoice" },
   { href: "/generate", label: "Generate" },
+  { href: "/contact", label: "Contacts" },
 ];
 
 export default function Header() {

@@ -42,8 +42,26 @@ function initSchema(db: Database.Database) {
       FOREIGN KEY (invoice_id) REFERENCES invoices(id)
     );
 
+    CREATE TABLE IF NOT EXISTS contacts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      address TEXT NOT NULL,
+      ens_name TEXT,
+      name TEXT,
+      notes TEXT,
+      ens_avatar TEXT,
+      ens_profile TEXT,
+      last_paid_at TEXT,
+      payment_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(user_id, address)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_invoices_user ON invoices(user_id);
     CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_contacts_user ON contacts(user_id);
+    CREATE INDEX IF NOT EXISTS idx_contacts_address ON contacts(address);
   `);
 }
 
@@ -255,4 +273,202 @@ export function getPaymentsByUser(userId: string) {
     routeData: row.route_data ? JSON.parse(row.route_data) : null,
     createdAt: row.created_at,
   }));
+}
+
+// Contact CRUD
+export function createContact(contact: {
+  id: string;
+  userId: string;
+  address: string;
+  ensName?: string;
+  name?: string;
+  notes?: string;
+}) {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO contacts (id, user_id, address, ens_name, name, notes)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    contact.id,
+    contact.userId,
+    contact.address.toLowerCase(),
+    contact.ensName || null,
+    contact.name || null,
+    contact.notes || null
+  );
+}
+
+export function upsertContact(contact: {
+  userId: string;
+  address: string;
+  ensName?: string;
+  name?: string;
+  notes?: string;
+  lastPaidAt?: string;
+  incrementPayment?: boolean;
+}) {
+  const db = getDb();
+  const existing = db.prepare(
+    "SELECT id, payment_count FROM contacts WHERE user_id = ? AND address = ?"
+  ).get(contact.userId, contact.address.toLowerCase()) as { id: string; payment_count: number } | undefined;
+
+  if (existing) {
+    const sets: string[] = ["updated_at = datetime('now')"];
+    const values: unknown[] = [];
+
+    if (contact.ensName !== undefined) {
+      sets.push("ens_name = ?");
+      values.push(contact.ensName);
+    }
+    if (contact.name !== undefined) {
+      sets.push("name = ?");
+      values.push(contact.name);
+    }
+    if (contact.notes !== undefined) {
+      sets.push("notes = ?");
+      values.push(contact.notes);
+    }
+    if (contact.lastPaidAt) {
+      sets.push("last_paid_at = ?");
+      values.push(contact.lastPaidAt);
+    }
+    if (contact.incrementPayment) {
+      sets.push("payment_count = payment_count + 1");
+    }
+
+    values.push(existing.id);
+    db.prepare(`UPDATE contacts SET ${sets.join(", ")} WHERE id = ?`).run(...values);
+    return existing.id;
+  } else {
+    const id = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO contacts (id, user_id, address, ens_name, name, notes, last_paid_at, payment_count)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      contact.userId,
+      contact.address.toLowerCase(),
+      contact.ensName || null,
+      contact.name || null,
+      contact.notes || null,
+      contact.lastPaidAt || null,
+      contact.incrementPayment ? 1 : 0
+    );
+    return id;
+  }
+}
+
+export function updateContact(id: string, data: {
+  name?: string;
+  notes?: string;
+  ensName?: string;
+  ensAvatar?: string;
+  ensProfile?: string;
+}) {
+  const db = getDb();
+  const sets: string[] = ["updated_at = datetime('now')"];
+  const values: unknown[] = [];
+
+  if (data.name !== undefined) {
+    sets.push("name = ?");
+    values.push(data.name);
+  }
+  if (data.notes !== undefined) {
+    sets.push("notes = ?");
+    values.push(data.notes);
+  }
+  if (data.ensName !== undefined) {
+    sets.push("ens_name = ?");
+    values.push(data.ensName);
+  }
+  if (data.ensAvatar !== undefined) {
+    sets.push("ens_avatar = ?");
+    values.push(data.ensAvatar);
+  }
+  if (data.ensProfile !== undefined) {
+    sets.push("ens_profile = ?");
+    values.push(data.ensProfile);
+  }
+
+  if (sets.length === 1) return; // Only updated_at
+
+  values.push(id);
+  db.prepare(`UPDATE contacts SET ${sets.join(", ")} WHERE id = ?`).run(...values);
+}
+
+export function deleteContact(id: string) {
+  const db = getDb();
+  db.prepare("DELETE FROM contacts WHERE id = ?").run(id);
+}
+
+export function getContactsByUser(userId: string) {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT * FROM contacts WHERE user_id = ? ORDER BY payment_count DESC, updated_at DESC
+  `).all(userId) as {
+    id: string;
+    user_id: string;
+    address: string;
+    ens_name: string | null;
+    name: string | null;
+    notes: string | null;
+    ens_avatar: string | null;
+    ens_profile: string | null;
+    last_paid_at: string | null;
+    payment_count: number;
+    created_at: string;
+    updated_at: string;
+  }[];
+
+  return rows.map((row) => ({
+    id: row.id,
+    userId: row.user_id,
+    address: row.address,
+    ensName: row.ens_name,
+    name: row.name,
+    notes: row.notes,
+    ensAvatar: row.ens_avatar,
+    ensProfile: row.ens_profile ? JSON.parse(row.ens_profile) : null,
+    lastPaidAt: row.last_paid_at,
+    paymentCount: row.payment_count,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+}
+
+export function getContactByAddress(userId: string, address: string) {
+  const db = getDb();
+  const row = db.prepare(
+    "SELECT * FROM contacts WHERE user_id = ? AND address = ?"
+  ).get(userId, address.toLowerCase()) as {
+    id: string;
+    user_id: string;
+    address: string;
+    ens_name: string | null;
+    name: string | null;
+    notes: string | null;
+    ens_avatar: string | null;
+    ens_profile: string | null;
+    last_paid_at: string | null;
+    payment_count: number;
+    created_at: string;
+    updated_at: string;
+  } | undefined;
+
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    address: row.address,
+    ensName: row.ens_name,
+    name: row.name,
+    notes: row.notes,
+    ensAvatar: row.ens_avatar,
+    ensProfile: row.ens_profile ? JSON.parse(row.ens_profile) : null,
+    lastPaidAt: row.last_paid_at,
+    paymentCount: row.payment_count,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }

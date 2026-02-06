@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getExplorerTxUrl } from "@/lib/chains";
+import { TransactionProgress } from "@/components/TransactionProgress";
+import type { TransactionProgress as TransactionProgressType } from "@/lib/lifi";
 import type { PaymentStatus as PaymentStatusType } from "@/lib/types";
 
 interface PaymentStatusProps {
@@ -11,6 +13,7 @@ interface PaymentStatusProps {
   txHash: string | null;
   chainName: string;
   executionLog: string[];
+  transactionProgress?: TransactionProgressType | null;
   onReset: () => void;
 }
 
@@ -29,6 +32,7 @@ export default function PaymentStatus({
   txHash,
   chainName,
   executionLog,
+  transactionProgress,
   onReset,
 }: PaymentStatusProps) {
   const config = statusConfig[status];
@@ -43,7 +47,7 @@ export default function PaymentStatus({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {status === "executing" && (
+        {status === "executing" && !transactionProgress && (
           <div className="flex items-center gap-3">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             <p className="text-sm text-muted-foreground">
@@ -52,19 +56,25 @@ export default function PaymentStatus({
           </div>
         )}
 
-        {status === "completed" && (
+        {/* Live Transaction Progress */}
+        {transactionProgress && (
+          <TransactionProgress progress={transactionProgress} />
+        )}
+
+        {status === "completed" && !transactionProgress && (
           <p className="text-sm text-green-600 dark:text-green-400">
             Payment sent successfully.
           </p>
         )}
 
-        {status === "failed" && (
+        {status === "failed" && !transactionProgress && (
           <p className="text-sm text-destructive">
             Payment failed. Please try again.
           </p>
         )}
 
-        {executionLog.length > 0 && (
+        {/* Fallback to execution log if no progress tracker */}
+        {!transactionProgress && executionLog.length > 0 && (
           <div className="space-y-1">
             <p className="text-sm font-medium">Execution Log</p>
             <div className="max-h-48 overflow-y-auto rounded-lg bg-muted/50 p-3 space-y-1">
@@ -77,7 +87,7 @@ export default function PaymentStatus({
           </div>
         )}
 
-        {txHash && (
+        {txHash && !transactionProgress && (
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">Transaction Hash</p>
             <p className="break-all font-mono text-xs">{txHash}</p>

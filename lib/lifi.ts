@@ -130,6 +130,156 @@ export async function fetchRoutes(params: RouteParams) {
   return result;
 }
 
+// ---- Multiple Routes with Tags ----
+
+export type RouteTag = "RECOMMENDED" | "FASTEST" | "CHEAPEST" | "BEST_VALUE";
+
+export interface RouteOption {
+  id: string;
+  route: Route;
+  toAmount: string;
+  toAmountFormatted: string;
+  gasCostUSD: string;
+  feeCostUSD: string;
+  totalCostUSD: string;
+  executionDuration: number;
+  executionDurationFormatted: string;
+  bridgeNames: string[];
+  stepCount: number;
+  tags: RouteTag[];
+}
+
+export interface MultipleRoutesResult {
+  routes: Route[];
+  routeOptions: RouteOption[];
+}
+
+/**
+ * Fetch multiple route options with tags for comparison.
+ * Returns up to 5 routes with RECOMMENDED, FASTEST, and CHEAPEST tags.
+ */
+export async function fetchMultipleRoutes(params: RouteParams): Promise<MultipleRoutesResult> {
+  ensureInitialized();
+
+  const request: RoutesRequest = {
+    fromChainId: params.fromChainId,
+    toChainId: params.toChainId,
+    fromTokenAddress: params.fromTokenAddress,
+    toTokenAddress: params.toTokenAddress,
+    fromAmount: params.fromAmount,
+    fromAddress: params.fromAddress,
+    toAddress: params.toAddress,
+  };
+
+  const result = await getRoutes(request);
+  const routes = result.routes.slice(0, 5); // Limit to 5 routes
+
+  if (routes.length === 0) {
+    return { routes: [], routeOptions: [] };
+  }
+
+  // Parse routes into RouteOption format
+  const routeOptions: RouteOption[] = routes.map((route, index) => {
+    // Calculate costs
+    const gasCostUSD = route.gasCostUSD || "0";
+    const feeCosts = route.steps.reduce((sum, step) => {
+      const stepFees = step.estimate?.feeCosts?.reduce(
+        (feeSum, fee) => feeSum + parseFloat(fee.amountUSD || "0"),
+        0
+      ) || 0;
+      return sum + stepFees;
+    }, 0);
+    const feeCostUSD = feeCosts.toFixed(2);
+    const totalCostUSD = (parseFloat(gasCostUSD) + feeCosts).toFixed(2);
+
+    // Get bridge/DEX names
+    const bridgeNames = route.steps.map(
+      (step) => step.toolDetails?.name || step.tool
+    );
+
+    // Format duration
+    const durationSec = route.steps.reduce(
+      (sum, step) => sum + (step.estimate?.executionDuration || 0),
+      0
+    );
+    const durationFormatted =
+      durationSec < 60
+        ? `${durationSec}s`
+        : `${Math.ceil(durationSec / 60)} min`;
+
+    // Get output amount
+    const lastStep = route.steps[route.steps.length - 1];
+    const toAmount = lastStep?.estimate?.toAmount || "0";
+    const toDecimals = lastStep?.action?.toToken?.decimals || 18;
+    const toAmountFormatted = formatTokenAmount(toAmount, toDecimals);
+
+    return {
+      id: `route-${index}`,
+      route,
+      toAmount,
+      toAmountFormatted,
+      gasCostUSD,
+      feeCostUSD,
+      totalCostUSD,
+      executionDuration: durationSec,
+      executionDurationFormatted: durationFormatted,
+      bridgeNames,
+      stepCount: route.steps.length,
+      tags: [],
+    };
+  });
+
+  // Assign tags
+  if (routeOptions.length > 0) {
+    // First route is RECOMMENDED (LiFi's default ordering)
+    routeOptions[0].tags.push("RECOMMENDED");
+
+    // Find FASTEST
+    const fastest = routeOptions.reduce((min, opt) =>
+      opt.executionDuration < min.executionDuration ? opt : min
+    );
+    if (!fastest.tags.includes("RECOMMENDED")) {
+      fastest.tags.push("FASTEST");
+    } else if (routeOptions.length > 1) {
+      // If recommended is also fastest, mark next fastest
+      const secondFastest = routeOptions
+        .filter((o) => o.id !== fastest.id)
+        .reduce((min, opt) =>
+          opt.executionDuration < min.executionDuration ? opt : min
+        );
+      secondFastest.tags.push("FASTEST");
+    }
+
+    // Find CHEAPEST (lowest total cost)
+    const cheapest = routeOptions.reduce((min, opt) =>
+      parseFloat(opt.totalCostUSD) < parseFloat(min.totalCostUSD) ? opt : min
+    );
+    if (!cheapest.tags.includes("RECOMMENDED") && !cheapest.tags.includes("FASTEST")) {
+      cheapest.tags.push("CHEAPEST");
+    } else if (routeOptions.length > 1) {
+      // If already has a tag, find next cheapest
+      const secondCheapest = routeOptions
+        .filter((o) => o.id !== cheapest.id)
+        .reduce((min, opt) =>
+          parseFloat(opt.totalCostUSD) < parseFloat(min.totalCostUSD) ? opt : min
+        );
+      if (!secondCheapest.tags.includes("FASTEST")) {
+        secondCheapest.tags.push("CHEAPEST");
+      }
+    }
+
+    // Find BEST_VALUE (highest output amount)
+    const bestValue = routeOptions.reduce((max, opt) =>
+      BigInt(opt.toAmount) > BigInt(max.toAmount) ? opt : max
+    );
+    if (bestValue.tags.length === 0) {
+      bestValue.tags.push("BEST_VALUE");
+    }
+  }
+
+  return { routes, routeOptions };
+}
+
 // ---- Execution ----
 
 export async function executePayment(
@@ -138,6 +288,18 @@ export async function executePayment(
 ): Promise<RouteExtended> {
   ensureInitialized();
   const route: Route = convertQuoteToRoute(quote);
+  const result = await executeRoute(route, executionOptions);
+  return result;
+}
+
+/**
+ * Execute a Route directly (for use with fetchMultipleRoutes).
+ */
+export async function executeRoutePayment(
+  route: Route,
+  executionOptions: ExecutionOptions
+): Promise<RouteExtended> {
+  ensureInitialized();
   const result = await executeRoute(route, executionOptions);
   return result;
 }
@@ -386,4 +548,121 @@ export function formatTokenAmount(amount: string, decimals: number): string {
   const value = parseFloat(amount) / 10 ** decimals;
   if (value < 0.0001) return "<0.0001";
   return value.toFixed(4);
+}
+
+// ---- Transaction Progress Tracking ----
+
+export type TransactionStepStatus = "pending" | "action_required" | "executing" | "completed" | "failed";
+
+export interface TransactionStep {
+  id: string;
+  type: "approval" | "swap" | "bridge" | "transfer";
+  status: TransactionStepStatus;
+  toolName: string;
+  fromChainId?: number;
+  toChainId?: number;
+  txHash?: string;
+  txLink?: string;
+  message?: string;
+}
+
+export interface TransactionProgress {
+  steps: TransactionStep[];
+  currentStepIndex: number;
+  isComplete: boolean;
+  isFailed: boolean;
+}
+
+/**
+ * Parse LiFi route execution state into structured transaction steps.
+ */
+export function parseRouteProgress(route: RouteExtended): TransactionProgress {
+  const steps: TransactionStep[] = [];
+  let currentStepIndex = 0;
+  let isComplete = true;
+  let isFailed = false;
+
+  for (let i = 0; i < route.steps.length; i++) {
+    const step = route.steps[i];
+    const execution = step.execution;
+
+    // Determine step type based on action type or tool
+    let type: TransactionStep["type"] = "transfer";
+    const stepType = step.type as string;
+    if (stepType === "swap") type = "swap";
+    else if (stepType === "cross" || stepType === "lifi") type = "bridge";
+
+    // Process each execution process
+    if (execution?.process) {
+      for (const process of execution.process) {
+        // Check if this is an approval step
+        const processType = process.type as string;
+        const isApproval = processType === "TOKEN_ALLOWANCE" || processType === "APPROVE" || processType === "PERMIT";
+
+        const processStatus = process.status as string;
+        let status: TransactionStepStatus = "pending";
+        if (processStatus === "DONE") status = "completed";
+        else if (processStatus === "FAILED") {
+          status = "failed";
+          isFailed = true;
+        } else if (processStatus === "ACTION_REQUIRED") status = "action_required";
+        else if (processStatus === "PENDING" || processStatus === "STARTED") {
+          status = "executing";
+          isComplete = false;
+        } else {
+          isComplete = false;
+        }
+
+        // Build explorer link
+        let txLink: string | undefined;
+        if (process.txHash) {
+          const chainId = (process as { chainId?: number }).chainId || step.action.fromChainId;
+          const chain = Object.values(SUPPORTED_CHAINS).find((c) => c.id === chainId);
+          if (chain) {
+            txLink = `${chain.explorerUrl}/tx/${process.txHash}`;
+          }
+        }
+
+        steps.push({
+          id: `${i}-${process.type}-${process.txHash || steps.length}`,
+          type: isApproval ? "approval" : type,
+          status,
+          toolName: step.toolDetails?.name || step.tool || "Unknown",
+          fromChainId: step.action.fromChainId,
+          toChainId: step.action.toChainId,
+          txHash: process.txHash,
+          txLink,
+          message: process.message,
+        });
+
+        if (status === "executing" || status === "action_required") {
+          currentStepIndex = steps.length - 1;
+        }
+      }
+    } else {
+      // Step hasn't started executing yet
+      isComplete = false;
+      steps.push({
+        id: `${i}-${type}`,
+        type,
+        status: "pending",
+        toolName: step.toolDetails?.name || step.tool || "Unknown",
+        fromChainId: step.action.fromChainId,
+        toChainId: step.action.toChainId,
+      });
+    }
+  }
+
+  // Find current step (first non-completed step)
+  for (let i = 0; i < steps.length; i++) {
+    if (steps[i].status !== "completed") {
+      currentStepIndex = i;
+      break;
+    }
+    if (i === steps.length - 1 && steps[i].status === "completed") {
+      currentStepIndex = i;
+    }
+  }
+
+  return { steps, currentStepIndex, isComplete, isFailed };
 }

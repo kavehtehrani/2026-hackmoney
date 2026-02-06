@@ -23,32 +23,44 @@ export async function POST(request: NextRequest) {
       fromToken,
       toToken,
       fromAmount,
+      toAmount, // For "receive exact" mode
       fromAddress,
       toAddress,
       slippage = 0.005, // 0.5% default slippage
     } = body;
 
-    // Validate required fields
-    if (!fromChain || !toChain || !fromToken || !toToken || !fromAmount || !fromAddress) {
+    // Validate required fields - need either fromAmount or toAmount
+    if (!fromChain || !toChain || !fromToken || !toToken || !fromAddress) {
       return NextResponse.json(
-        { error: "Missing required fields: fromChain, toChain, fromToken, toToken, fromAmount, fromAddress" },
+        { error: "Missing required fields: fromChain, toChain, fromToken, toToken, fromAddress" },
+        { status: 400 }
+      );
+    }
+
+    if (!fromAmount && !toAmount) {
+      return NextResponse.json(
+        { error: "Either fromAmount or toAmount is required" },
         { status: 400 }
       );
     }
 
     ensureInitialized();
 
-    // Get quote from LI.FI
-    const quote = await getQuote({
+    // Build quote params - use toAmount for "receive exact" mode, otherwise fromAmount
+    const baseParams = {
       fromChain,
       toChain,
       fromToken,
       toToken,
-      fromAmount,
       fromAddress,
       toAddress: toAddress || fromAddress,
       slippage,
-    });
+    };
+
+    // Get quote from LI.FI
+    const quote = toAmount
+      ? await getQuote({ ...baseParams, toAmount })
+      : await getQuote({ ...baseParams, fromAmount });
 
     // Extract the key information for the frontend
     const response = {

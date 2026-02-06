@@ -121,7 +121,7 @@ export default function DashboardPage() {
             invoices.map((inv) => (
               <Card key={inv.id} className="transition-colors hover:bg-muted/30">
                 <CardContent className="flex items-center gap-3 py-3">
-                  <span className="text-xs text-muted-foreground font-mono w-20 shrink-0">
+                  <span className="text-xs text-muted-foreground font-mono w-20 shrink-0 hidden sm:block">
                     {formatDate(inv.createdAt)}
                   </span>
                   {inv.parsedData?.chain && (
@@ -131,9 +131,9 @@ export default function DashboardPage() {
                       className="h-8 w-8 rounded-full shrink-0"
                     />
                   )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium truncate">
+                  <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-medium truncate max-w-[150px] sm:max-w-none">
                         {inv.parsedData?.recipientName || "Unnamed Invoice"}
                       </span>
                       <Badge variant={statusVariant(inv.status)}>

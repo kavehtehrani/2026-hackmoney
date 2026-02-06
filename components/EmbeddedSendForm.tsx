@@ -2,9 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useWallets } from "@privy-io/react-auth";
-import { createPublicClient, http } from "viem";
-import { normalize } from "viem/ens";
-import { mainnet } from "viem/chains";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TokenIcon, ChainIcon } from "@/components/TokenIcon";
@@ -18,12 +15,9 @@ import {
   buildApprovalTx,
   type WalletTokenBalance,
 } from "@/lib/lifi";
+import { resolveEnsForChain, getEnsProfile, type ENSProfile } from "@/lib/ens";
+import { ENSAvatar, ENSProfileCard } from "@/components/ENSProfileCard";
 import type { ParsedPaymentIntent } from "@/lib/types";
-
-const ensClient = createPublicClient({
-  chain: mainnet,
-  transport: http("https://eth.drpc.org"),
-});
 
 const RECEIVE_TOKENS = [
   { symbol: "ETH", address: "0x0000000000000000000000000000000000000000", decimals: 18 },
@@ -95,6 +89,8 @@ export function EmbeddedSendForm({ intent, onSuccess, onCancel }: EmbeddedSendFo
   const [toAddress, setToAddress] = useState(intent.recipient || "");
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
   const [resolvingEns, setResolvingEns] = useState(false);
+  const [ensProfile, setEnsProfile] = useState<ENSProfile | null>(null);
+  const [showProfileCard, setShowProfileCard] = useState(false);
   const [toChainId, setToChainId] = useState<number>(8453);
   const [toTokenSymbol, setToTokenSymbol] = useState(intent.token || "USDC");
   const [amount, setAmount] = useState(intent.amount || "");
@@ -163,9 +159,13 @@ export function EmbeddedSendForm({ intent, onSuccess, onCancel }: EmbeddedSendFo
     }
   }, [intent.destinationChain]);
 
-  // Resolve ENS names
+  // Resolve ENS names with chain-specific resolution and profile fetching
   useEffect(() => {
     const resolveAddress = async () => {
+      // Clear profile when address changes
+      setEnsProfile(null);
+      setShowProfileCard(false);
+
       if (/^0x[a-fA-F0-9]{40}$/.test(toAddress)) {
         setResolvedAddress(toAddress);
         return;
@@ -173,8 +173,15 @@ export function EmbeddedSendForm({ intent, onSuccess, onCancel }: EmbeddedSendFo
       if (toAddress.includes(".")) {
         setResolvingEns(true);
         try {
-          const resolved = await ensClient.getEnsAddress({ name: normalize(toAddress) });
+          // Use chain-specific ENS resolution (ENSIP-9/11)
+          const resolved = await resolveEnsForChain(toAddress, toChainId);
           setResolvedAddress(resolved);
+
+          // Fetch full ENS profile if resolved
+          if (resolved) {
+            const profile = await getEnsProfile(toAddress);
+            setEnsProfile(profile);
+          }
         } catch {
           setResolvedAddress(null);
         } finally {
@@ -186,7 +193,7 @@ export function EmbeddedSendForm({ intent, onSuccess, onCancel }: EmbeddedSendFo
     };
     const timer = setTimeout(resolveAddress, 300);
     return () => clearTimeout(timer);
-  }, [toAddress]);
+  }, [toAddress, toChainId]);
 
   // Get quote
   const getQuote = useCallback(async () => {
@@ -465,7 +472,36 @@ export function EmbeddedSendForm({ intent, onSuccess, onCancel }: EmbeddedSendFo
               </svg>
             )}
           </div>
-          {!resolvingEns && toAddress.includes(".") && resolvedAddress && (
+
+          {/* ENS resolved display with avatar */}
+          {!resolvingEns && toAddress.includes(".") && resolvedAddress && ensProfile && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowProfileCard(!showProfileCard)}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+              >
+                <ENSAvatar avatar={ensProfile.avatar} name={ensProfile.name} size={20} />
+                <span className="text-xs text-green-600 font-mono">{resolvedAddress}</span>
+                <svg
+                  className={`h-3 w-3 text-muted-foreground transition-transform ${showProfileCard ? "rotate-180" : ""}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </div>
+          )}
+
+          {/* ENS Profile Card (expandable) */}
+          {showProfileCard && ensProfile && (
+            <ENSProfileCard profile={ensProfile} size="sm" />
+          )}
+
+          {/* Fallback for resolved address without profile */}
+          {!resolvingEns && toAddress.includes(".") && resolvedAddress && !ensProfile && (
             <p className="text-xs text-green-600 font-mono text-left">{resolvedAddress}</p>
           )}
           {!resolvingEns && toAddress.includes(".") && toAddress.length > 3 && !resolvedAddress && (

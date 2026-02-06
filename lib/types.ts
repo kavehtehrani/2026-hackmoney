@@ -57,3 +57,18 @@ export interface ParsedPaymentIntent {
   missingFields: string[];
   originalInput: string;
 }
+
+export interface Contact {
+  id: string;
+  userId: string;
+  address: string;
+  ensName: string | null;
+  name: string | null;
+  notes: string | null;
+  ensAvatar: string | null;
+  ensProfile: Record<string, unknown> | null;
+  lastPaidAt: string | null;
+  paymentCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
