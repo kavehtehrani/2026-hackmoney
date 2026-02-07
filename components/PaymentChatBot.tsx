@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { EmbeddedSendForm, type PaymentResult } from "@/components/EmbeddedSendForm";
 import type { ParsedPaymentIntent, ParsedInvoice } from "@/lib/types";
+import { getExplorerTxUrl } from "@/lib/chains";
 
 interface Message {
   id: string;
@@ -17,6 +18,8 @@ interface Message {
   fileName?: string;
   filePreview?: string;
   invoiceId?: string;
+  txHash?: string;
+  explorerUrl?: string;
 }
 
 export function PaymentChatBot() {
@@ -166,12 +169,20 @@ export function PaymentChatBot() {
         msg.id === messageId ? { ...msg, showForm: false } : msg
       )
     );
+
+    // Build success message with tx hash link
+    const txHash = result?.txHash;
+    const fromChain = result?.fromChain;
+    const explorerUrl = txHash && fromChain ? getExplorerTxUrl(fromChain, txHash) : undefined;
+
     setMessages((prev) => [
       ...prev,
       {
         id: Date.now().toString(),
         role: "assistant",
-        content: "Payment sent! Is there anything else I can help you with?",
+        content: "Payment sent!",
+        txHash,
+        explorerUrl,
       },
     ]);
   };
@@ -352,6 +363,19 @@ export function PaymentChatBot() {
                     </div>
                   )}
                   <p className="text-sm">{message.content}</p>
+                  {message.txHash && message.explorerUrl && (
+                    <a
+                      href={message.explorerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 mt-2 text-sm text-primary hover:underline"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      View on Explorer ({message.txHash.slice(0, 6)}...{message.txHash.slice(-4)})
+                    </a>
+                  )}
                 </div>
               </div>
 
