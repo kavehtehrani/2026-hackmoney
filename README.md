@@ -1,4 +1,6 @@
-![logo](public/logo-with-text.svg)
+<p align="center">
+  <img src="public/logo-with-text.svg" alt="PayFlow" width="200">
+</p>
 
 # PayFlow
 

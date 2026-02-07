@@ -19,6 +19,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [confirmDeleteInvoice, setConfirmDeleteInvoice] = useState<string | null>(null);
   const [confirmDeletePayment, setConfirmDeletePayment] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
 
   const fetchData = useCallback(async () => {
     if (!user?.id) return;
@@ -107,6 +108,12 @@ export default function DashboardPage() {
 
   const isSuccessStatus = (s: string) => s === "paid" || s === "completed";
 
+  const sortedInvoices = [...invoices].sort((a, b) => {
+    const dateA = new Date(a.createdAt).getTime();
+    const dateB = new Date(b.createdAt).getTime();
+    return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
+  });
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 space-y-5">
       <div className="flex items-center justify-between">
@@ -127,14 +134,30 @@ export default function DashboardPage() {
       <WalletBalance />
 
       <Tabs defaultValue="invoices">
-        <TabsList className="bg-muted/50">
-          <TabsTrigger value="invoices">
-            Invoices ({invoices.length})
-          </TabsTrigger>
-          <TabsTrigger value="payments">
-            Payments ({payments.length})
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between">
+          <TabsList className="bg-muted/50">
+            <TabsTrigger value="invoices">
+              Invoices ({invoices.length})
+            </TabsTrigger>
+            <TabsTrigger value="payments">
+              Payments ({payments.length})
+            </TabsTrigger>
+          </TabsList>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSortOrder(sortOrder === "newest" ? "oldest" : "newest")}
+            className="text-xs text-muted-foreground gap-1"
+          >
+            {sortOrder === "newest" ? "Newest first" : "Oldest first"}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m3 16 4 4 4-4" />
+              <path d="M7 20V4" />
+              <path d="m21 8-4-4-4 4" />
+              <path d="M17 4v16" />
+            </svg>
+          </Button>
+        </div>
 
         <TabsContent value="invoices" className="mt-3 space-y-1">
           {loading ? (
@@ -160,87 +183,96 @@ export default function DashboardPage() {
               </Button>
             </div>
           ) : (
-            invoices.map((inv) => (
+            sortedInvoices.map((inv) => (
               <Card key={inv.id} className="transition-colors hover:bg-muted/30">
-                <CardContent className="flex items-center gap-2 py-2 px-3">
-                  <span className="text-xs text-muted-foreground font-mono w-20 shrink-0 hidden sm:block">
-                    {formatDate(inv.createdAt)}
-                  </span>
-                  {inv.parsedData?.chain && (
-                    <img
-                      src={getChainLogo(inv.parsedData.chain)}
-                      alt={inv.parsedData.chain}
-                      className="h-8 w-8 rounded-full shrink-0"
-                    />
-                  )}
-                  <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-medium truncate max-w-[150px] sm:max-w-none">
-                        {inv.parsedData?.recipientName || "Unnamed Invoice"}
-                      </span>
-                      <Badge
-                        variant={statusVariant(inv.status)}
-                        className={isSuccessStatus(inv.status) ? "bg-green-500/15 text-green-600 border-green-500/20" : ""}
-                      >
-                        {inv.status}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                      {inv.parsedData?.token && (
-                        <img
-                          src={getTokenLogo(inv.parsedData.token)}
-                          alt={inv.parsedData.token}
-                          className="h-4 w-4 rounded-full"
-                        />
-                      )}
-                      <span className="truncate">
-                        {inv.parsedData
-                          ? `${inv.parsedData.amount} ${inv.parsedData.token} to ${inv.parsedData.recipientAddress}`
-                          : inv.rawFileName || "No data"}
+                <CardContent className="py-2 px-3 space-y-1">
+                  <div className="flex items-center gap-3">
+                    <div className="w-[5.5rem] shrink-0 hidden sm:block">
+                      <span className="text-xs text-muted-foreground font-mono block whitespace-nowrap">
+                        {formatDate(inv.createdAt)}
                       </span>
                       {inv.parsedData?.dueDate && (
-                        <span className={`shrink-0 text-xs ${
+                        <span className={`block text-xs font-mono whitespace-nowrap ${
                           new Date(inv.parsedData.dueDate) < new Date() && inv.status !== "paid"
                             ? "text-destructive font-medium"
-                            : ""
+                            : "text-amber-600 dark:text-amber-500"
                         }`}>
-                          Due {formatDate(inv.parsedData.dueDate)}
+                          {formatDate(inv.parsedData.dueDate)}
                         </span>
                       )}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {inv.status !== "paid" && inv.parsedData && (
-                      <Button
-                        onClick={() => router.push(`/upload?invoiceId=${inv.id}`)}
-                        className="px-6"
-                      >
-                        Pay
-                      </Button>
+                    {inv.parsedData?.chain && (
+                      <img
+                        src={getChainLogo(inv.parsedData.chain)}
+                        alt={inv.parsedData.chain}
+                        className="h-8 w-8 rounded-full shrink-0"
+                      />
                     )}
-                    {confirmDeleteInvoice === inv.id ? (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleDeleteInvoice(inv.id)}
-                        className="h-8 text-xs"
-                      >
-                        Confirm?
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteInvoice(inv.id)}
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6" />
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        </svg>
-                      </Button>
-                    )}
+                    <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-medium truncate max-w-[150px] sm:max-w-none">
+                          {inv.parsedData?.recipientName || "Unnamed Invoice"}
+                        </span>
+                        <Badge
+                          variant={statusVariant(inv.status)}
+                          className={isSuccessStatus(inv.status) ? "bg-green-500/15 text-green-600 border-green-500/20" : ""}
+                        >
+                          {inv.status}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                        {inv.parsedData?.token && (
+                          <img
+                            src={getTokenLogo(inv.parsedData.token)}
+                            alt={inv.parsedData.token}
+                            className="h-4 w-4 rounded-full"
+                          />
+                        )}
+                        <span className="truncate">
+                          {inv.parsedData
+                            ? `${inv.parsedData.amount} ${inv.parsedData.token} to ${inv.parsedData.recipientAddress}`
+                            : inv.rawFileName || "No data"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {inv.status !== "paid" && inv.parsedData && (
+                        <Button
+                          onClick={() => router.push(`/upload?invoiceId=${inv.id}`)}
+                          className="px-6"
+                        >
+                          Pay
+                        </Button>
+                      )}
+                      {confirmDeleteInvoice === inv.id ? (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteInvoice(inv.id)}
+                          className="h-8 text-xs"
+                        >
+                          Confirm?
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteInvoice(inv.id)}
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
+                        </Button>
+                      )}
+                    </div>
                   </div>
+                  {inv.parsedData?.memo && (
+                    <p className="text-xs text-muted-foreground italic sm:ml-[6.25rem]">
+                      {inv.parsedData.memo}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             ))
