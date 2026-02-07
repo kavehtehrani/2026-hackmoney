@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "userId required" }, { status: 400 });
   }
 
-  const invoices = getInvoicesByUser(userId);
+  const invoices = await getInvoicesByUser(userId);
   return NextResponse.json(invoices);
 }
 
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const id = body.id || uuid();
 
-    createInvoice({
+    await createInvoice({
       id,
       userId: body.userId,
       rawFileName: body.rawFileName,
@@ -40,7 +40,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
     }
 
-    updateInvoice(body.id, {
+    await updateInvoice(body.id, {
       parsedData: body.parsedData,
       status: body.status,
     });
@@ -59,7 +59,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
     }
 
-    deleteInvoice(id);
+    await deleteInvoice(id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Delete invoice error:", error);

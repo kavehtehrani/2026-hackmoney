@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "userId required" }, { status: 400 });
   }
 
-  const contacts = getContactsByUser(userId);
+  const contacts = await getContactsByUser(userId);
   return NextResponse.json(contacts);
 }
 
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create/update the contact
-    const id = upsertContact({
+    const id = await upsertContact({
       userId: body.userId,
       address: address,
       ensName: ensName,
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     // Update ENS profile data separately if we have it
     if (ensAvatar || ensProfile) {
-      updateContact(id, {
+      await updateContact(id, {
         ensAvatar: ensAvatar || undefined,
         ensProfile: ensProfile ? JSON.stringify(ensProfile) : undefined,
       });
@@ -91,7 +91,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
     }
 
-    deleteContact(id);
+    await deleteContact(id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Delete contact error:", error);

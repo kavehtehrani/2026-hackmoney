@@ -1,72 +1,98 @@
-import Database from "better-sqlite3";
-import path from "path";
+import { createClient, Client } from "@libsql/client";
 
-const DB_PATH = process.env.DATABASE_URL?.replace("file:", "") || path.join(process.cwd(), "payflow.db");
+let db: Client | null = null;
+let schemaInitialized = false;
 
-let db: Database.Database | null = null;
-
-export function getDb(): Database.Database {
+export function getDb(): Client {
   if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma("journal_mode = WAL");
-    db.pragma("foreign_keys = ON");
-    initSchema(db);
+    db = createClient({
+      url: process.env.TURSO_DATABASE_URL || "file:./payflow.db",
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    });
   }
   return db;
 }
 
-function initSchema(db: Database.Database) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS invoices (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      raw_file_name TEXT,
-      raw_file_type TEXT,
-      parsed_data TEXT,
-      status TEXT NOT NULL DEFAULT 'draft',
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+async function initSchema(): Promise<void> {
+  if (schemaInitialized) return;
 
-    CREATE TABLE IF NOT EXISTS payments (
-      id TEXT PRIMARY KEY,
-      invoice_id TEXT NOT NULL,
-      tx_hash TEXT,
-      from_chain TEXT,
-      to_chain TEXT,
-      from_token TEXT,
-      to_token TEXT,
-      amount TEXT,
-      status TEXT NOT NULL DEFAULT 'pending',
-      route_data TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (invoice_id) REFERENCES invoices(id)
-    );
+  const db = getDb();
+  await db.batch([
+    {
+      sql: `CREATE TABLE IF NOT EXISTS invoices (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        raw_file_name TEXT,
+        raw_file_type TEXT,
+        parsed_data TEXT,
+        status TEXT NOT NULL DEFAULT 'draft',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS payments (
+        id TEXT PRIMARY KEY,
+        invoice_id TEXT NOT NULL,
+        tx_hash TEXT,
+        from_chain TEXT,
+        to_chain TEXT,
+        from_token TEXT,
+        to_token TEXT,
+        amount TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        route_data TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE TABLE IF NOT EXISTS contacts (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        address TEXT NOT NULL,
+        ens_name TEXT,
+        name TEXT,
+        notes TEXT,
+        ens_avatar TEXT,
+        ens_profile TEXT,
+        last_paid_at TEXT,
+        payment_count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(user_id, address)
+      )`,
+      args: [],
+    },
+    {
+      sql: `CREATE INDEX IF NOT EXISTS idx_invoices_user ON invoices(user_id)`,
+      args: [],
+    },
+    {
+      sql: `CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id)`,
+      args: [],
+    },
+    {
+      sql: `CREATE INDEX IF NOT EXISTS idx_contacts_user ON contacts(user_id)`,
+      args: [],
+    },
+    {
+      sql: `CREATE INDEX IF NOT EXISTS idx_contacts_address ON contacts(address)`,
+      args: [],
+    },
+  ]);
+  schemaInitialized = true;
+}
 
-    CREATE TABLE IF NOT EXISTS contacts (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      address TEXT NOT NULL,
-      ens_name TEXT,
-      name TEXT,
-      notes TEXT,
-      ens_avatar TEXT,
-      ens_profile TEXT,
-      last_paid_at TEXT,
-      payment_count INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(user_id, address)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_invoices_user ON invoices(user_id);
-    CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id);
-    CREATE INDEX IF NOT EXISTS idx_contacts_user ON contacts(user_id);
-    CREATE INDEX IF NOT EXISTS idx_contacts_address ON contacts(address);
-  `);
+// Ensure schema is initialized before any DB operation
+async function ensureDb(): Promise<Client> {
+  await initSchema();
+  return getDb();
 }
 
 // Invoice CRUD
-export function createInvoice(invoice: {
+export async function createInvoice(invoice: {
   id: string;
   userId: string;
   rawFileName?: string;
@@ -74,25 +100,25 @@ export function createInvoice(invoice: {
   parsedData?: object | null;
   status?: string;
 }) {
-  const db = getDb();
-  const stmt = db.prepare(`
-    INSERT INTO invoices (id, user_id, raw_file_name, raw_file_type, parsed_data, status)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
-  stmt.run(
-    invoice.id,
-    invoice.userId,
-    invoice.rawFileName || null,
-    invoice.rawFileType || null,
-    invoice.parsedData ? JSON.stringify(invoice.parsedData) : null,
-    invoice.status || "draft"
-  );
+  const db = await ensureDb();
+  await db.execute({
+    sql: `INSERT INTO invoices (id, user_id, raw_file_name, raw_file_type, parsed_data, status)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [
+      invoice.id,
+      invoice.userId,
+      invoice.rawFileName || null,
+      invoice.rawFileType || null,
+      invoice.parsedData ? JSON.stringify(invoice.parsedData) : null,
+      invoice.status || "draft",
+    ],
+  });
 }
 
-export function updateInvoice(id: string, data: { parsedData?: object; status?: string }) {
-  const db = getDb();
+export async function updateInvoice(id: string, data: { parsedData?: object; status?: string }) {
+  const db = await ensureDb();
   const sets: string[] = [];
-  const values: unknown[] = [];
+  const values: (string | null)[] = [];
 
   if (data.parsedData !== undefined) {
     sets.push("parsed_data = ?");
@@ -106,66 +132,66 @@ export function updateInvoice(id: string, data: { parsedData?: object; status?: 
   if (sets.length === 0) return;
 
   values.push(id);
-  db.prepare(`UPDATE invoices SET ${sets.join(", ")} WHERE id = ?`).run(...values);
+  await db.execute({
+    sql: `UPDATE invoices SET ${sets.join(", ")} WHERE id = ?`,
+    args: values,
+  });
 }
 
-export function getInvoicesByUser(userId: string) {
-  const db = getDb();
-  const rows = db.prepare("SELECT * FROM invoices WHERE user_id = ? ORDER BY created_at DESC").all(userId) as {
-    id: string;
-    user_id: string;
-    raw_file_name: string | null;
-    raw_file_type: string | null;
-    parsed_data: string | null;
-    status: string;
-    created_at: string;
-  }[];
+export async function getInvoicesByUser(userId: string) {
+  const db = await ensureDb();
+  const result = await db.execute({
+    sql: "SELECT * FROM invoices WHERE user_id = ? ORDER BY created_at DESC",
+    args: [userId],
+  });
 
-  return rows.map((row) => ({
-    id: row.id,
-    userId: row.user_id,
-    rawFileName: row.raw_file_name,
-    rawFileType: row.raw_file_type,
-    parsedData: row.parsed_data ? JSON.parse(row.parsed_data) : null,
-    status: row.status,
-    createdAt: row.created_at,
+  return result.rows.map((row) => ({
+    id: row.id as string,
+    userId: row.user_id as string,
+    rawFileName: row.raw_file_name as string | null,
+    rawFileType: row.raw_file_type as string | null,
+    parsedData: row.parsed_data ? JSON.parse(row.parsed_data as string) : null,
+    status: row.status as string,
+    createdAt: row.created_at as string,
   }));
 }
 
-export function deleteInvoice(id: string) {
-  const db = getDb();
+export async function deleteInvoice(id: string) {
+  const db = await ensureDb();
   // Delete associated payments first (due to foreign key constraint)
-  db.prepare("DELETE FROM payments WHERE invoice_id = ?").run(id);
-  db.prepare("DELETE FROM invoices WHERE id = ?").run(id);
+  await db.execute({
+    sql: "DELETE FROM payments WHERE invoice_id = ?",
+    args: [id],
+  });
+  await db.execute({
+    sql: "DELETE FROM invoices WHERE id = ?",
+    args: [id],
+  });
 }
 
-export function getInvoiceById(id: string) {
-  const db = getDb();
-  const row = db.prepare("SELECT * FROM invoices WHERE id = ?").get(id) as {
-    id: string;
-    user_id: string;
-    raw_file_name: string | null;
-    raw_file_type: string | null;
-    parsed_data: string | null;
-    status: string;
-    created_at: string;
-  } | undefined;
+export async function getInvoiceById(id: string) {
+  const db = await ensureDb();
+  const result = await db.execute({
+    sql: "SELECT * FROM invoices WHERE id = ?",
+    args: [id],
+  });
 
+  const row = result.rows[0];
   if (!row) return null;
 
   return {
-    id: row.id,
-    userId: row.user_id,
-    rawFileName: row.raw_file_name,
-    rawFileType: row.raw_file_type,
-    parsedData: row.parsed_data ? JSON.parse(row.parsed_data) : null,
-    status: row.status,
-    createdAt: row.created_at,
+    id: row.id as string,
+    userId: row.user_id as string,
+    rawFileName: row.raw_file_name as string | null,
+    rawFileType: row.raw_file_type as string | null,
+    parsedData: row.parsed_data ? JSON.parse(row.parsed_data as string) : null,
+    status: row.status as string,
+    createdAt: row.created_at as string,
   };
 }
 
 // Payment CRUD
-export function createPayment(payment: {
+export async function createPayment(payment: {
   id: string;
   invoiceId: string;
   fromChain?: string;
@@ -175,26 +201,27 @@ export function createPayment(payment: {
   amount?: string;
   status?: string;
 }) {
-  const db = getDb();
-  db.prepare(`
-    INSERT INTO payments (id, invoice_id, from_chain, to_chain, from_token, to_token, amount, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    payment.id,
-    payment.invoiceId,
-    payment.fromChain || null,
-    payment.toChain || null,
-    payment.fromToken || null,
-    payment.toToken || null,
-    payment.amount || null,
-    payment.status || "pending"
-  );
+  const db = await ensureDb();
+  await db.execute({
+    sql: `INSERT INTO payments (id, invoice_id, from_chain, to_chain, from_token, to_token, amount, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      payment.id,
+      payment.invoiceId,
+      payment.fromChain || null,
+      payment.toChain || null,
+      payment.fromToken || null,
+      payment.toToken || null,
+      payment.amount || null,
+      payment.status || "pending",
+    ],
+  });
 }
 
-export function updatePayment(id: string, data: { txHash?: string; status?: string; routeData?: object }) {
-  const db = getDb();
+export async function updatePayment(id: string, data: { txHash?: string; status?: string; routeData?: object }) {
+  const db = await ensureDb();
   const sets: string[] = [];
-  const values: unknown[] = [];
+  const values: (string | null)[] = [];
 
   if (data.txHash !== undefined) {
     sets.push("tx_hash = ?");
@@ -212,83 +239,69 @@ export function updatePayment(id: string, data: { txHash?: string; status?: stri
   if (sets.length === 0) return;
 
   values.push(id);
-  db.prepare(`UPDATE payments SET ${sets.join(", ")} WHERE id = ?`).run(...values);
+  await db.execute({
+    sql: `UPDATE payments SET ${sets.join(", ")} WHERE id = ?`,
+    args: values,
+  });
 }
 
-export function deletePayment(id: string) {
-  const db = getDb();
-  db.prepare("DELETE FROM payments WHERE id = ?").run(id);
+export async function deletePayment(id: string) {
+  const db = await ensureDb();
+  await db.execute({
+    sql: "DELETE FROM payments WHERE id = ?",
+    args: [id],
+  });
 }
 
-export function getPaymentsByInvoice(invoiceId: string) {
-  const db = getDb();
-  const rows = db.prepare("SELECT * FROM payments WHERE invoice_id = ? ORDER BY created_at DESC").all(invoiceId) as {
-    id: string;
-    invoice_id: string;
-    tx_hash: string | null;
-    from_chain: string | null;
-    to_chain: string | null;
-    from_token: string | null;
-    to_token: string | null;
-    amount: string | null;
-    status: string;
-    route_data: string | null;
-    created_at: string;
-  }[];
+export async function getPaymentsByInvoice(invoiceId: string) {
+  const db = await ensureDb();
+  const result = await db.execute({
+    sql: "SELECT * FROM payments WHERE invoice_id = ? ORDER BY created_at DESC",
+    args: [invoiceId],
+  });
 
-  return rows.map((row) => ({
-    id: row.id,
-    invoiceId: row.invoice_id,
-    txHash: row.tx_hash,
-    fromChain: row.from_chain,
-    toChain: row.to_chain,
-    fromToken: row.from_token,
-    toToken: row.to_token,
-    amount: row.amount,
-    status: row.status,
-    routeData: row.route_data ? JSON.parse(row.route_data) : null,
-    createdAt: row.created_at,
+  return result.rows.map((row) => ({
+    id: row.id as string,
+    invoiceId: row.invoice_id as string,
+    txHash: row.tx_hash as string | null,
+    fromChain: row.from_chain as string | null,
+    toChain: row.to_chain as string | null,
+    fromToken: row.from_token as string | null,
+    toToken: row.to_token as string | null,
+    amount: row.amount as string | null,
+    status: row.status as string,
+    routeData: row.route_data ? JSON.parse(row.route_data as string) : null,
+    createdAt: row.created_at as string,
   }));
 }
 
-export function getPaymentsByUser(userId: string) {
-  const db = getDb();
-  const rows = db.prepare(`
-    SELECT p.* FROM payments p
-    JOIN invoices i ON p.invoice_id = i.id
-    WHERE i.user_id = ?
-    ORDER BY p.created_at DESC
-  `).all(userId) as {
-    id: string;
-    invoice_id: string;
-    tx_hash: string | null;
-    from_chain: string | null;
-    to_chain: string | null;
-    from_token: string | null;
-    to_token: string | null;
-    amount: string | null;
-    status: string;
-    route_data: string | null;
-    created_at: string;
-  }[];
+export async function getPaymentsByUser(userId: string) {
+  const db = await ensureDb();
+  const result = await db.execute({
+    sql: `SELECT p.* FROM payments p
+          JOIN invoices i ON p.invoice_id = i.id
+          WHERE i.user_id = ?
+          ORDER BY p.created_at DESC`,
+    args: [userId],
+  });
 
-  return rows.map((row) => ({
-    id: row.id,
-    invoiceId: row.invoice_id,
-    txHash: row.tx_hash,
-    fromChain: row.from_chain,
-    toChain: row.to_chain,
-    fromToken: row.from_token,
-    toToken: row.to_token,
-    amount: row.amount,
-    status: row.status,
-    routeData: row.route_data ? JSON.parse(row.route_data) : null,
-    createdAt: row.created_at,
+  return result.rows.map((row) => ({
+    id: row.id as string,
+    invoiceId: row.invoice_id as string,
+    txHash: row.tx_hash as string | null,
+    fromChain: row.from_chain as string | null,
+    toChain: row.to_chain as string | null,
+    fromToken: row.from_token as string | null,
+    toToken: row.to_token as string | null,
+    amount: row.amount as string | null,
+    status: row.status as string,
+    routeData: row.route_data ? JSON.parse(row.route_data as string) : null,
+    createdAt: row.created_at as string,
   }));
 }
 
 // Contact CRUD
-export function createContact(contact: {
+export async function createContact(contact: {
   id: string;
   userId: string;
   address: string;
@@ -296,21 +309,22 @@ export function createContact(contact: {
   name?: string;
   notes?: string;
 }) {
-  const db = getDb();
-  db.prepare(`
-    INSERT INTO contacts (id, user_id, address, ens_name, name, notes)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(
-    contact.id,
-    contact.userId,
-    contact.address.toLowerCase(),
-    contact.ensName || null,
-    contact.name || null,
-    contact.notes || null
-  );
+  const db = await ensureDb();
+  await db.execute({
+    sql: `INSERT INTO contacts (id, user_id, address, ens_name, name, notes)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [
+      contact.id,
+      contact.userId,
+      contact.address.toLowerCase(),
+      contact.ensName || null,
+      contact.name || null,
+      contact.notes || null,
+    ],
+  });
 }
 
-export function upsertContact(contact: {
+export async function upsertContact(contact: {
   userId: string;
   address: string;
   ensName?: string;
@@ -318,15 +332,18 @@ export function upsertContact(contact: {
   notes?: string;
   lastPaidAt?: string;
   incrementPayment?: boolean;
-}) {
-  const db = getDb();
-  const existing = db.prepare(
-    "SELECT id, payment_count FROM contacts WHERE user_id = ? AND address = ?"
-  ).get(contact.userId, contact.address.toLowerCase()) as { id: string; payment_count: number } | undefined;
+}): Promise<string> {
+  const db = await ensureDb();
+  const existingResult = await db.execute({
+    sql: "SELECT id, payment_count FROM contacts WHERE user_id = ? AND address = ?",
+    args: [contact.userId, contact.address.toLowerCase()],
+  });
+
+  const existing = existingResult.rows[0];
 
   if (existing) {
     const sets: string[] = ["updated_at = datetime('now')"];
-    const values: unknown[] = [];
+    const values: (string | number | null)[] = [];
 
     if (contact.ensName !== undefined) {
       sets.push("ens_name = ?");
@@ -348,38 +365,42 @@ export function upsertContact(contact: {
       sets.push("payment_count = payment_count + 1");
     }
 
-    values.push(existing.id);
-    db.prepare(`UPDATE contacts SET ${sets.join(", ")} WHERE id = ?`).run(...values);
-    return existing.id;
+    values.push(existing.id as string);
+    await db.execute({
+      sql: `UPDATE contacts SET ${sets.join(", ")} WHERE id = ?`,
+      args: values,
+    });
+    return existing.id as string;
   } else {
     const id = crypto.randomUUID();
-    db.prepare(`
-      INSERT INTO contacts (id, user_id, address, ens_name, name, notes, last_paid_at, payment_count)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id,
-      contact.userId,
-      contact.address.toLowerCase(),
-      contact.ensName || null,
-      contact.name || null,
-      contact.notes || null,
-      contact.lastPaidAt || null,
-      contact.incrementPayment ? 1 : 0
-    );
+    await db.execute({
+      sql: `INSERT INTO contacts (id, user_id, address, ens_name, name, notes, last_paid_at, payment_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        id,
+        contact.userId,
+        contact.address.toLowerCase(),
+        contact.ensName || null,
+        contact.name || null,
+        contact.notes || null,
+        contact.lastPaidAt || null,
+        contact.incrementPayment ? 1 : 0,
+      ],
+    });
     return id;
   }
 }
 
-export function updateContact(id: string, data: {
+export async function updateContact(id: string, data: {
   name?: string;
   notes?: string;
   ensName?: string;
   ensAvatar?: string;
   ensProfile?: string;
 }) {
-  const db = getDb();
+  const db = await ensureDb();
   const sets: string[] = ["updated_at = datetime('now')"];
-  const values: unknown[] = [];
+  const values: (string | null)[] = [];
 
   if (data.name !== undefined) {
     sets.push("name = ?");
@@ -405,82 +426,65 @@ export function updateContact(id: string, data: {
   if (sets.length === 1) return; // Only updated_at
 
   values.push(id);
-  db.prepare(`UPDATE contacts SET ${sets.join(", ")} WHERE id = ?`).run(...values);
+  await db.execute({
+    sql: `UPDATE contacts SET ${sets.join(", ")} WHERE id = ?`,
+    args: values,
+  });
 }
 
-export function deleteContact(id: string) {
-  const db = getDb();
-  db.prepare("DELETE FROM contacts WHERE id = ?").run(id);
+export async function deleteContact(id: string) {
+  const db = await ensureDb();
+  await db.execute({
+    sql: "DELETE FROM contacts WHERE id = ?",
+    args: [id],
+  });
 }
 
-export function getContactsByUser(userId: string) {
-  const db = getDb();
-  const rows = db.prepare(`
-    SELECT * FROM contacts WHERE user_id = ? ORDER BY payment_count DESC, updated_at DESC
-  `).all(userId) as {
-    id: string;
-    user_id: string;
-    address: string;
-    ens_name: string | null;
-    name: string | null;
-    notes: string | null;
-    ens_avatar: string | null;
-    ens_profile: string | null;
-    last_paid_at: string | null;
-    payment_count: number;
-    created_at: string;
-    updated_at: string;
-  }[];
+export async function getContactsByUser(userId: string) {
+  const db = await ensureDb();
+  const result = await db.execute({
+    sql: `SELECT * FROM contacts WHERE user_id = ? ORDER BY payment_count DESC, updated_at DESC`,
+    args: [userId],
+  });
 
-  return rows.map((row) => ({
-    id: row.id,
-    userId: row.user_id,
-    address: row.address,
-    ensName: row.ens_name,
-    name: row.name,
-    notes: row.notes,
-    ensAvatar: row.ens_avatar,
-    ensProfile: row.ens_profile ? JSON.parse(row.ens_profile) : null,
-    lastPaidAt: row.last_paid_at,
-    paymentCount: row.payment_count,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+  return result.rows.map((row) => ({
+    id: row.id as string,
+    userId: row.user_id as string,
+    address: row.address as string,
+    ensName: row.ens_name as string | null,
+    name: row.name as string | null,
+    notes: row.notes as string | null,
+    ensAvatar: row.ens_avatar as string | null,
+    ensProfile: row.ens_profile ? JSON.parse(row.ens_profile as string) : null,
+    lastPaidAt: row.last_paid_at as string | null,
+    paymentCount: row.payment_count as number,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
   }));
 }
 
-export function getContactByAddress(userId: string, address: string) {
-  const db = getDb();
-  const row = db.prepare(
-    "SELECT * FROM contacts WHERE user_id = ? AND address = ?"
-  ).get(userId, address.toLowerCase()) as {
-    id: string;
-    user_id: string;
-    address: string;
-    ens_name: string | null;
-    name: string | null;
-    notes: string | null;
-    ens_avatar: string | null;
-    ens_profile: string | null;
-    last_paid_at: string | null;
-    payment_count: number;
-    created_at: string;
-    updated_at: string;
-  } | undefined;
+export async function getContactByAddress(userId: string, address: string) {
+  const db = await ensureDb();
+  const result = await db.execute({
+    sql: "SELECT * FROM contacts WHERE user_id = ? AND address = ?",
+    args: [userId, address.toLowerCase()],
+  });
 
+  const row = result.rows[0];
   if (!row) return null;
 
   return {
-    id: row.id,
-    userId: row.user_id,
-    address: row.address,
-    ensName: row.ens_name,
-    name: row.name,
-    notes: row.notes,
-    ensAvatar: row.ens_avatar,
-    ensProfile: row.ens_profile ? JSON.parse(row.ens_profile) : null,
-    lastPaidAt: row.last_paid_at,
-    paymentCount: row.payment_count,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    id: row.id as string,
+    userId: row.user_id as string,
+    address: row.address as string,
+    ensName: row.ens_name as string | null,
+    name: row.name as string | null,
+    notes: row.notes as string | null,
+    ensAvatar: row.ens_avatar as string | null,
+    ensProfile: row.ens_profile ? JSON.parse(row.ens_profile as string) : null,
+    lastPaidAt: row.last_paid_at as string | null,
+    paymentCount: row.payment_count as number,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
   };
 }

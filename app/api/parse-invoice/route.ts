@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     // Save to database
     const invoiceId = uuid();
-    createInvoice({
+    await createInvoice({
       id: invoiceId,
       userId,
       rawFileName,

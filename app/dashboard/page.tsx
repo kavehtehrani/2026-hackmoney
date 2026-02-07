@@ -136,7 +136,7 @@ export default function DashboardPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="invoices" className="mt-3 space-y-2">
+        <TabsContent value="invoices" className="mt-3 space-y-1">
           {loading ? (
             <div className="flex items-center gap-3 py-8 justify-center">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -162,7 +162,7 @@ export default function DashboardPage() {
           ) : (
             invoices.map((inv) => (
               <Card key={inv.id} className="transition-colors hover:bg-muted/30">
-                <CardContent className="flex items-center gap-3 py-3">
+                <CardContent className="flex items-center gap-2 py-2 px-3">
                   <span className="text-xs text-muted-foreground font-mono w-20 shrink-0 hidden sm:block">
                     {formatDate(inv.createdAt)}
                   </span>
@@ -238,7 +238,7 @@ export default function DashboardPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="payments" className="mt-3 space-y-2">
+        <TabsContent value="payments" className="mt-3 space-y-1">
           {loading ? (
             <div className="flex items-center gap-3 py-8 justify-center">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -259,7 +259,7 @@ export default function DashboardPage() {
               const invoice = invoices.find((inv) => inv.id === pay.invoiceId);
               return (
               <Card key={pay.id} className="transition-colors hover:bg-muted/30">
-                <CardContent className="flex items-center gap-3 py-3">
+                <CardContent className="flex items-center gap-2 py-2 px-3">
                   <span className="text-xs text-muted-foreground font-mono w-20 shrink-0">
                     {formatDate(pay.createdAt)}
                   </span>

@@ -9,7 +9,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    updateContact(id, {
+    await updateContact(id, {
       name: body.name,
       notes: body.notes,
       ensName: body.ensName,

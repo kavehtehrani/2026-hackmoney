@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "userId required" }, { status: 400 });
   }
 
-  const payments = getPaymentsByUser(userId);
+  const payments = await getPaymentsByUser(userId);
   return NextResponse.json(payments);
 }
 
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const id = uuid();
 
-    createPayment({
+    await createPayment({
       id,
       invoiceId: body.invoiceId,
       fromChain: body.fromChain,
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     // If txHash is provided, update it
     if (body.txHash) {
-      updatePayment(id, { txHash: body.txHash });
+      await updatePayment(id, { txHash: body.txHash });
     }
 
     return NextResponse.json({ id });
@@ -47,7 +47,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
     }
 
-    updatePayment(body.id, {
+    await updatePayment(body.id, {
       txHash: body.txHash,
       status: body.status,
       routeData: body.routeData,
@@ -67,7 +67,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
     }
 
-    deletePayment(id);
+    await deletePayment(id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Delete payment error:", error);

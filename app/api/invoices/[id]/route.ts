@@ -7,7 +7,7 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const invoice = getInvoiceById(id);
+  const invoice = await getInvoiceById(id);
   if (!invoice) {
     return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   }
