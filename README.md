@@ -22,7 +22,7 @@ PayFlow simplifies crypto payments by combining invoice parsing, cross-chain tra
 
 ## Demo
 
-[![Video Title](https://img.youtube.com/vi/eulLa3soZZY/0.jpg)](https://youtu.be/eulLa3soZZY)
+[![Payflow Demo](https://img.youtube.com/vi/eulLa3soZZY/1.jpg)](https://youtu.be/eulLa3soZZY)
 
 ## Supported Chains
 
