@@ -6,7 +6,8 @@
 
 An AI-powered crypto payment application for paying anyone on any chain. 
 
-_This is a hackathon project as part of [HackMoney 2026](https://ethglobal.com/events/hackmoney2026/)._
+_This is a hackathon project as part of [HackMoney 2026](https://ethglobal.com/events/hackmoney2026/). 
+Submission link is [here](https://ethglobal.com/showcase/payflow-jg28k)._
 
 ![Chatbot Interface](screenshots/chatbot.png)
 
